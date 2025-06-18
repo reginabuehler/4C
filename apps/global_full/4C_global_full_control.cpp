@@ -13,6 +13,7 @@
 #include "4C_io_pstream.hpp"
 
 #include <chrono>
+#include <thread>
 
 
 namespace
@@ -72,11 +73,13 @@ void ntam(int argc, char* argv[])
   ntainp_ccadiscret(inputfile_name, outputfile_kenner, restartfile_kenner);
 
   ti = walltime_in_seconds() - t0;
+  Core::Communication::barrier(gcomm);
   if (Core::Communication::my_mpi_rank(gcomm) == 0)
   {
     Core::IO::cout << "\nTotal wall time for INPUT:       " << std::setw(10) << std::setprecision(3)
                    << std::scientific << ti << " sec \n\n";
   }
+  Core::Communication::barrier(gcomm);
 
   /*--------------------------------------------------calculation phase */
   t0 = walltime_in_seconds();
@@ -84,11 +87,15 @@ void ntam(int argc, char* argv[])
   ntacal();
 
   tc = walltime_in_seconds() - t0;
+  Core::Communication::barrier(gcomm);
   if (Core::Communication::my_mpi_rank(gcomm) == 0)
   {
     Core::IO::cout << "\nTotal wall time for CALCULATION: " << std::setw(10) << std::setprecision(3)
                    << std::scientific << tc << " sec \n\n";
+    Core::IO::flush(Core::IO::cout);
   }
+  std::this_thread::sleep_for(std::chrono::milliseconds(200));
+  Core::Communication::barrier(gcomm);
 
   // Let's print the deprecation warning again to increase the chance users will see it.
   if (Core::Communication::my_mpi_rank(gcomm) == 0)

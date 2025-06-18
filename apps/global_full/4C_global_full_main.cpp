@@ -474,7 +474,8 @@ int main(int argc, char* argv[])
     else
     {
       Core::Communication::barrier(gcomm);
-      printf("processor %d finished normally\n", Core::Communication::my_mpi_rank(lcomm));
+      Core::IO::cout << "processor " << Core::Communication::my_mpi_rank(lcomm)
+                     << " finished normally\n";
     }
   }
 
