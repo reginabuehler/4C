@@ -43,3 +43,4 @@ Here is the outline of all available tutorials:
    tutorial_fsi_2d
    tutorial_fsi_3d
    tutorial_battery
+   tutorial_preconditioning
