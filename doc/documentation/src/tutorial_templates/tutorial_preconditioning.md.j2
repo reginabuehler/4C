@@ -1,28 +1,15 @@
 {% set tutorial_file_solid = "tutorial_prec_solid.4C.yaml" %}
+{% set tutorial_file_fsi = "tutorial_prec_fsi.4C.yaml" %}
 {% set input_file_content_solid = load_input_file(tutorial_file_solid) %}
+{% set input_file_content_fsi = load_input_file(tutorial_file_fsi) %}
 
-# Preconditioning Tutorial
-
-## Overview
-
-1. [Solid mechanics: Solving linear systems arising from 3D elasticity](#solid-mechanics:-solving-linear-systems-arising-from-3D-elasticity)
-    1. [Problem Setup](#problem-setup)
-    1. [Preliminary Steps](#preliminary-steps)
-    1. [Step 0: Iterative Solver without any Preconditioner](#step-0:-iterative-solver-without-any-preconditioner)
-    1. [Step 1: Iterative Solver with Jacobi preconditioner](#step-1:-iterative-solver-with-jacobi-preconditioner)
-    1. [Step 2: Iterative Solver with Chebyshev preconditioner](#step-2:-iterative-solver-with-chebyshev-preconditioner)
-    1. [Step 3: Iterative Solver with Incomplete-LU Factorization Preconditioner](#step-3:-iterative-solver-with-incomplete-LU-factorization-preconditioner)
-    1. [Step 4: Iterative Solver with Smoothed-Aggregation Algebraic Multigrid Preconditioner](#step-4:-iterative-solver-with-smoothed-aggregation-algebraic-multigrid-preconditioner)
-    1. [Step 5: Weak Scaling Behavior](#step-5:-weak-scaling-behavior)
-1. [Block preconditioning of monolithic FSI solvers](#block-preconditioning-of-monolithic-fsi-solvers)
+# Preconditioning Tutorial 
 
 ## Solid mechanics: Solving linear systems arising from 3D elasticity
 
 The following instructions will guide you through different preconditioner options to solve a linear system
 
-$$
-A x = b
-$$
+$$Ax = b$$
 
 arising from the finite element discretization of a cantilever beam using solid elements.
 
@@ -30,35 +17,35 @@ arising from the finite element discretization of a cantilever beam using solid 
 
 > The exact details of the problem setup are not important for the course of this tutorial and, thus, are only summarized briefly.
 
-The problem consists of a cantilever beam with dimensions $1 \times 1 \times 5$. It is fully clamped at $z=0$. The surface at $z=5$ is subject to a Dirichlet boundary condition, prescibing a displacement of $[0.01, 0.01, 0.01]$ in $[x, y, z]$ directions, respectively. A St.-Venant-Kirchhoff material with a Young's modulus of $1$ and a Poisson's ration of $0.3$ is used in combination with linear kinematics. The problem is configured to only solve a single linear system.
+The problem consists of a cantilever beam with dimensions $1 x\times 1 \times 5$. It is fully clamped at $z=0$. The surface at $z=5$ is subject to a Dirichlet boundary condition, prescibing a displacement of $[0.01, 0.01, 0.01]$ in $[x, y, z]$ directions, respectively. A St.-Venant-Kirchhoff material with a Young's modulus of $1$ and a Poisson's ration of $0.3$ is used in combination with linear kinematics. The problem is configured to only solve a single linear system.
 
 The geometry (with "mesh 1" defined below) looks as follows:
 
-![Geometry and mesh of a cantilever beam](/_assets/tut_prec_solid_mesh_screenshot.png)
+![Geometry and mesh of a cantilever beam](solid_mesh_screenshot.png)
 
 The simulation model with three possible meshes is defined using the following files:
 
-- `tutorial_prec_solid.4C.yaml`: simulation parameters and boundary conditions for clamped cantilever beam with endload performing a single solve of the linear system
-- `tutorial_prec_solid_gmres.xml`: definition of a GMRES solver from Belos (required for iterative solvers throughout the tutorial)
-- a series of mesh files `tutorial_prec_solid_*.exo` to change the size of the linear system to be solved (see table with meshing details)
+- `solid.4C.yaml`: simulation parameters and boundary conditions for clamped cantilever beam with endload performing a single solve of the linear system
+- `solid_gmres.xml`: definition of a GMRES solver from Belos (required for iterative solvers throughout the tutorial)
+- a series of mesh files `solid_*.exo` to change the size of the linear system to be solved (see table with meshing details)
 
 Meshing details:
 
 | Mesh file | #nodes x | #nodes y | #nodes z | #DOFs |  #MPI ranks |
 |---|---|---|---|---|---|
-| `tutorial_prec_solid_0.exo` | 3 | 3 | 15 | 405 | 1 |
-| `tutorial_prec_solid_1.exo` | 12 | 12 | 60 | 25920 | 1 |
-| `tutorial_prec_solid_2.exo` | 16 | 16 | 80 | 61440 | 2 |
-| `tutorial_prec_solid_3.exo` | 20 | 20 | 100 | 120000 | 4 |
-| `tutorial_prec_solid_4.exo` | 23 | 23 | 115 | 182505 | 6 |
-| `tutorial_prec_solid_5.exo` | 25 | 25 |125 | 234375 | 8 |
+| `solid_0.exo` | 3 | 3 | 15 | 405 | 1 |
+| `solid_1.exo` | 12 | 12 | 60 | 25920 | 1 |
+| `solid_2.exo` | 16 | 16 | 80 | 61440 | 2 |
+| `solid_3.exo` | 20 | 20 | 100 | 120000 | 4 |
+| `solid_4.exo` | 23 | 23 | 115 | 182505 | 6 |
+| `solid_5.exo` | 25 | 25 |125 | 234375 | 8 |
 
 Different preconditioners are predefined in the following files:
 
-- `tutorial_prec_solid_ifpack_Jacobi.xml`
-- `tutorial_prec_solid_ifpack_Chebyshev.xml`
-- `tutorial_prec_solid_ifpack_ILU.xml`
-- `tutorial_prec_solid_muelu_sa_amg.xml`
+- `prec_solid_ifpack_Jacobi.xml`
+- `prec_solid_ifpack_ILU.xml`
+- `prec_solid_ifpack_GaussSeidel.xml`
+- `prec_solid_muelu_sa_amg.xml`
 
 They will be used and modified throughout this tutorial.
 
@@ -75,7 +62,7 @@ They will be used and modified throughout this tutorial.
 The default input file comes with a direct solver, so you can run it right away. To run it on `<numProc>` MPI ranks, use the following command:
 
 ```bash
-mpirun -np <numProcs> <4Cexe> tutorial_prec_solid.4C.yaml output
+mpirun -np <numProcs> <4Cexe> solid.4C.yaml output
 ```
 
 Please verify, that the simulation has finished successfully.
@@ -86,16 +73,16 @@ In theory, you can run a Krylov solver without any preconditioner and it will co
 
 ### Step 1: Iterative Solver with Jacobi preconditioner
 
-The `tutorial_prec_solid.4C.yaml` input file comes with a pre-configured iterative solver (GMRES) with a **relaxation preconditioner**, namely **Jacobi's method**. In the input file, it is defined in `SOLVER 2`. The preconditioner is configured in the file `tutorial_prec_solid_ifpack_Jacobi.xml`.
+The `solid.4C.yaml` input file comes with a pre-configured iterative solver (GMRES) with a **relaxation preconditioner**, namely **Jacobi's method**. In the input file, it is defined in `SOLVER 2`. The preconditioner is configured in the file `prec_solid_ifpack_Jacobi.xml`.
 
 To switch to GMRES with a Jacobi preconditioner, set the solid `LINEAR_SOLVER` to `2`.
 
-1. Open the `tutorial_prec_solid.4C.yaml` input file.
-1. Familiarize yourself with the list `SOLVER 2` and the file `tutorial_prec_solid_ifpack_Jacobi.xml`.
+1. Open the `solid.4C.yaml` input file.
+1. Familiarize yourself with the list `SOLVER 2` and the file `prec_solid_ifpack_Jacobi.xml`.
 1. To switch to the new solver,
    1. find the list `STRUCTURAL DYNAMIC`,
    1. modify the value of its parameter `LINEAR_SOLVER` to `2`.
-1. Save the file `tutorial_prec_solid.4C.yaml`
+1. Save the file `solid.4C.yaml`
 
 <details>
 <summary>Solution</summary>
@@ -116,7 +103,6 @@ STRUCTURAL DYNAMIC:
 ```
 
 </details>
-
 
 Now, run the example and watch the convergence behavior of the iterative solver.
 
@@ -170,13 +156,13 @@ Study the influence of the following parameters on the number of GMRES iteration
   - Number of sweeps: `"relaxation: sweeps"` [Range: 1 - 5]
   - Number of sweeps: `"relaxation: damping factor"` [Range: 0.1 - 1.0]
 
-- Mesh (to be set in `tutorial_prec_solid.4C.yaml`)
+- Mesh (to be set in `solid.4C.yaml`)
 
-  - `tutorial_prec_solid_1.exo` (for 1 MPI process)
-  - `tutorial_prec_solid_2.exo` (for 2 MPI processes)
-  - `tutorial_prec_solid_3.exo` (for 4 MPI processes)
-  - `tutorial_prec_solid_4.exo` (for 6 MPI processes)
-  - `tutorial_prec_solid_5.exo` (for 8 MPI processes)
+  - `solid_1.exo` (for 1 MPI process)
+  - `solid_2.exo` (for 2 MPI processes)
+  - `solid_3.exo` (for 4 MPI processes)
+  - `solid_4.exo` (for 6 MPI processes)
+  - `solid_5.exo` (for 8 MPI processes)
 
 Discuss the observations with your colleagues.
 
@@ -188,10 +174,9 @@ Discuss the observations with your colleagues.
 
 </details>
 
-
 ### Step 2: Iterative Solver with Chebyshev preconditioner
 
-The `tutorial_prec_solid.4C.yaml` input file comes with a pre-configured iterative solver (GMRES) with a **polynomial preconditioner** using **Chebyshev polynomials**. In the input file, it is defined in `SOLVER 3`. The preconditioner is configured in the file `tutorial_prec_solid_ifpack_Chebyshev.xml`.
+The `solid.4C.yaml` input file comes with a pre-configured iterative solver (GMRES) with a **polynomial preconditioner** using **Chebyshev polynomials**. In the input file, it is defined in `SOLVER 3`. The preconditioner is configured in the file `prec_solid_ifpack_Chebyshev.xml`.
 
 To switch to GMRES with a Chebyshev preconditioner, set the solid `LINEAR_SOLVER` to `3`.
 
@@ -221,13 +206,13 @@ Now, run the example and watch the convergence behavior of the iterative solver.
 
   - Polynomial degree: `"chebyshev: degree"` [Range: 1 - 6]
 
-- Mesh (to be set in `tutorial_prec_solid.4C.yaml`)
+- Mesh (to be set in `solid.4C.yaml`)
 
-  - `tutorial_solid_1.exo` (for 1 MPI process)
-  - `tutorial_solid_2.exo` (for 2 MPI processes)
-  - `tutorial_solid_3.exo` (for 4 MPI processes)
-  - `tutorial_solid_4.exo` (for 6 MPI processes)
-  - `tutorial_solid_5.exo` (for 8 MPI processes)
+  - `solid_1.exo` (for 1 MPI process)
+  - `solid_2.exo` (for 2 MPI processes)
+  - `solid_3.exo` (for 4 MPI processes)
+  - `solid_4.exo` (for 6 MPI processes)
+  - `solid_5.exo` (for 8 MPI processes)
 
 Discuss the observations with your colleagues.
 
@@ -240,7 +225,7 @@ Larger polynomial degrees reduce the number of iterations.
 
 ### Step 3: Iterative Solver with Incompluete-LU Factorization Preconditioner
 
-The `tutorial_prec_solid.4C.yaml` input file comes with a pre-configured iterative solver (GMRES) with an **incomplete LU factorization (ILU) preconditioner**. In the input file, it is defined in `SOLVER 4`. The preconditioner is configured in the file `tutorial_prec_solid_ifpack_ILU.xml`.
+The `solid.4C.yaml` input file comes with a pre-configured iterative solver (GMRES) with an **incomplete LU factorization (ILU) preconditioner**. In the input file, it is defined in `SOLVER 4`. The preconditioner is configured in the file `prec_solid_ifpack_ILU.xml`.
 
 To switch to GMRES with an ILU preconditioner, set the solid `LINEAR_SOLVER` to `4`.
 
@@ -271,13 +256,13 @@ Now, run the example and watch the convergence behavior of the iterative solver.
   - Overlap at processor boundaries: `"Overlap"` defines the overlap at processor boundaries (`0` = no overlap, larger values results in larger overlap) [Range: 0 - 2]
   - Fill-in: `"fact: level-of-fill"` defines the allowed fill-in (larger values result in a better approximation, however a more expensive setup procedure) [Range: 0 - 3]
 
-- Mesh (to be set in `tutorial_prec_solid.4C.yaml`)
+- Mesh (to be set in `solid.4C.yaml`)
 
-  - `tutorial_solid_1.exo` (for 1 MPI process)
-  - `tutorial_solid_2.exo` (for 2 MPI processes)
-  - `tutorial_solid_3.exo` (for 4 MPI processes)
-  - `tutorial_solid_4.exo` (for 6 MPI processes)
-  - `tutorial_solid_5.exo` (for 8 MPI processes)
+  - `solid_1.exo` (for 1 MPI process)
+  - `solid_2.exo` (for 2 MPI processes)
+  - `solid_3.exo` (for 4 MPI processes)
+  - `solid_4.exo` (for 6 MPI processes)
+  - `solid_5.exo` (for 8 MPI processes)
 
 Discuss the observations with your colleagues.
 
@@ -290,7 +275,7 @@ Larger fill-in reduces the number of iterations, but increases the preconditione
 
 ### Step 4: Iterative Solver with Smoothed-Aggregation Algebraic Multigrid Preconditioner
 
-The `tutorial_prec_solid.4C.yaml` input file comes with a pre-configured iterative solver (GMRES) with a **smoothed aggregation algebraic multigrid preconditioner**. In the input file, it is defined in `SOLVER 5`. The preconditioner is configured in the file `tutorial_prec_solid_muelu_sa_amg.xml`.
+The `solid.4C.yaml` input file comes with a pre-configured iterative solver (GMRES) with a **smoothed aggregation algebraic multigrid preconditioner**. In the input file, it is defined in `SOLVER 5`. The preconditioner is configured in the file `prec_solid_muelu_sa_amg.xml`.
 
 To switch to GMRES with an algebraic multigrid preconditioner, set the solid `LINEAR_SOLVER` to `5`.
 
@@ -320,13 +305,13 @@ Now, run the example and watch the convergence behavior of the iterative solver.
 
   - Polynomial degree of the Chebyshev level smoother: `"chebyshev: degree"` [Range: 0 - 6]
 
-- Mesh (to be set in `tutorial_prec_solid.4C.yaml`)
+- Mesh (to be set in `solid.4C.yaml`)
 
-  - `tutorial_solid_1.exo` (for 1 MPI process)
-  - `tutorial_solid_2.exo` (for 2 MPI processes)
-  - `tutorial_solid_3.exo` (for 4 MPI processes)
-  - `tutorial_solid_4.exo` (for 6 MPI processes)
-  - `tutorial_solid_5.exo` (for 8 MPI processes)
+  - `solid_1.exo` (for 1 MPI process)
+  - `solid_2.exo` (for 2 MPI processes)
+  - `solid_3.exo` (for 4 MPI processes)
+  - `solid_4.exo` (for 6 MPI processes)
+  - `solid_5.exo` (for 8 MPI processes)
 
 Discuss the observations with your colleagues.
 
@@ -342,7 +327,7 @@ If you like to investigate a different level smoother, follow the "Optional stud
 <details>
 <summary>Optional study: change the level smoother</summary>
 
-1. Open the preconditioner configuration `tutorial_prec_solid_muelu_sa_amg.xml`
+1. Open the preconditioner configuarion `prec_solid_muelu_sa_amg.xml`
 1. Comment the list of the Chebyshev level smoother and uncomment the list of the Gauss-Seidel level smoother
 
    ```xml
@@ -382,10 +367,10 @@ For the purpose of this tutorial, we assess the performance by the number of GMR
 
 To assess the weak scaling behavior of a particular preconditioner, perform the following steps:
 
-1. Select a preconditioner by choosing one of the predefined `SOLVER`s in `tutorial_prec_solid.4C.yaml`.
-   1. Choose a parametrization for this preconditioner in the respective `tutorial_prec_solid_*.xml` file (and keep it constant for the entire study)
+1. Select a preconditioner by choosing one of the predefined `SOLVER`s in `solid.4C.yaml`.
+   1. Choose a parametrization for this preconditioner in the respective `prec_solid_*.xml` file (and keep it constant for the entire study)
    1. Study one mesh
-      1. Select a mesh by setting `tutorial_prec_solid_*.exo` in the input file.
+      1. Select a mesh by setting `solid_*.exo` in the input file.
       1. Run the example using the suitable number of MPI processes
       (as listed in the tables on meshing details)
       1. Take a note of the number of GMRES iterations required to reach convergence
@@ -411,13 +396,13 @@ The weak scaling behavior of the following preconditioners is compared:
 - ILU: fill-level 0
 - SA-AMG: V-cycle with Chebyshev polynomials of degree 2 as level smoothers
 
-To make it reproducible on a laptop or desktop workstation, scaling behavior is assessed for 1, 2, 4, 6, and 8 MPI processes only. The number of iterations for each mesh and preconditioner are reported in the following figure:
+To make it reproducible on a laptop or desktop workstation, scaling behavior is assess for 1, 2, 4, 6, and 8 MPI processes only. The number of iterations for each mesh and preconditioner are reported in the following figure:
 
-![Diagram to compare the weak scaling behavior of one- and multilevel preconditioners](/_assets/tut_prec_weak_scaling_diagram_all.png)
+![Diagram to compare the weak scaling behavior of one- and multilevel preconditioners](weak_scaling_comparison/weak_scaling_diagram_all.png)
 
-For a less distorted diagram, here is a plot of the same data without the Jacobi preconditioner:
+For a less distored diagram, here is a plot of the same data without the Jacobi preconditioner:
 
-![Details of diagram to compare the weak scaling behavior of one- and multilevel preconditioners](/_assets/tut_prec_weak_scaling_diagram_without_jacobi.png)
+![Details of diagram to compare the weak scaling behavior of one- and multilevel preconditioners](weak_scaling_comparison/weak_scaling_diagram_without_jacobi.png)
 
 Here are the numbers in detail:
 
