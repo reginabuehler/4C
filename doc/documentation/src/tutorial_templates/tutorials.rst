@@ -26,3 +26,4 @@ The following tutorials are available to show different features of |FOURC|.
    tutorial_solid
    tutorial_contact_3d
    tutorial_battery
+   tutorial_preconditioning
