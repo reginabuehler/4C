@@ -1,15 +1,15 @@
 {% set tutorial_file_solid = "tutorial_prec_solid.4C.yaml" %}
-{% set tutorial_file_fsi = "tutorial_prec_fsi.4C.yaml" %}
 {% set input_file_content_solid = load_input_file(tutorial_file_solid) %}
-{% set input_file_content_fsi = load_input_file(tutorial_file_fsi) %}
 
-# Preconditioning Tutorial 
+# Preconditioning Tutorial
 
 ## Solid mechanics: Solving linear systems arising from 3D elasticity
 
 The following instructions will guide you through different preconditioner options to solve a linear system
 
-$$Ax = b$$
+$$
+A x = b
+$$
 
 arising from the finite element discretization of a cantilever beam using solid elements.
 
