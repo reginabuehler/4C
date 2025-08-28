@@ -12,7 +12,7 @@
 
 #include "4C_fem_general_cell_type_traits.hpp"
 #include "4C_fem_general_element.hpp"
-#include "4C_linalg_tensor_generators.hpp"
+#include "4C_linalg_fixedsizematrix.hpp"
 #include "4C_solid_3D_ele_calc.hpp"
 #include "4C_solid_3D_ele_calc_lib.hpp"
 
@@ -23,9 +23,7 @@ namespace Discret::Elements
   template <Core::FE::CellType celltype>
   struct DisplacementBasedLinearizationContainer
   {
-    Core::LinAlg::Matrix<Internal::num_str<celltype>,
-        Core::FE::num_nodes(celltype) * Core::FE::dim<celltype>>
-        Bop_{};
+    // nothing special needed
   };
 
   /*!
@@ -59,15 +57,7 @@ namespace Discret::Elements
       const Core::LinAlg::SymmetricTensor<double, Core::FE::dim<celltype>, Core::FE::dim<celltype>>
           gl_strain = evaluate_green_lagrange_strain(cauchygreen);
 
-      const DisplacementBasedLinearizationContainer<celltype> linearization = std::invoke(
-          [&]()
-          {
-            DisplacementBasedLinearizationContainer<celltype> linearization{};
-            linearization.Bop_ =
-                evaluate_strain_gradient(jacobian_mapping, spatial_material_mapping);
-
-            return linearization;
-          });
+      const DisplacementBasedLinearizationContainer<celltype> linearization{};
 
       return evaluator(spatial_material_mapping.deformation_gradient_, gl_strain, linearization);
     }
@@ -86,15 +76,15 @@ namespace Discret::Elements
       // evaluate derivative w.r.t. displacements
       for (int i = 0; i < Core::FE::num_nodes(celltype); ++i)
       {
-        d_F_dd(0, Core::FE::dim<celltype> * i + 0) = jacobian_mapping.N_XYZ_(0, i);
-        d_F_dd(1, Core::FE::dim<celltype> * i + 1) = jacobian_mapping.N_XYZ_(1, i);
-        d_F_dd(2, Core::FE::dim<celltype> * i + 2) = jacobian_mapping.N_XYZ_(2, i);
-        d_F_dd(3, Core::FE::dim<celltype> * i + 0) = jacobian_mapping.N_XYZ_(1, i);
-        d_F_dd(4, Core::FE::dim<celltype> * i + 1) = jacobian_mapping.N_XYZ_(2, i);
-        d_F_dd(5, Core::FE::dim<celltype> * i + 0) = jacobian_mapping.N_XYZ_(2, i);
-        d_F_dd(6, Core::FE::dim<celltype> * i + 1) = jacobian_mapping.N_XYZ_(0, i);
-        d_F_dd(7, Core::FE::dim<celltype> * i + 2) = jacobian_mapping.N_XYZ_(1, i);
-        d_F_dd(8, Core::FE::dim<celltype> * i + 2) = jacobian_mapping.N_XYZ_(0, i);
+        d_F_dd(0, Core::FE::dim<celltype> * i + 0) = jacobian_mapping.N_XYZ[i](0);
+        d_F_dd(1, Core::FE::dim<celltype> * i + 1) = jacobian_mapping.N_XYZ[i](1);
+        d_F_dd(2, Core::FE::dim<celltype> * i + 2) = jacobian_mapping.N_XYZ[i](2);
+        d_F_dd(3, Core::FE::dim<celltype> * i + 0) = jacobian_mapping.N_XYZ[i](1);
+        d_F_dd(4, Core::FE::dim<celltype> * i + 1) = jacobian_mapping.N_XYZ[i](2);
+        d_F_dd(5, Core::FE::dim<celltype> * i + 0) = jacobian_mapping.N_XYZ[i](2);
+        d_F_dd(6, Core::FE::dim<celltype> * i + 1) = jacobian_mapping.N_XYZ[i](0);
+        d_F_dd(7, Core::FE::dim<celltype> * i + 2) = jacobian_mapping.N_XYZ[i](1);
+        d_F_dd(8, Core::FE::dim<celltype> * i + 2) = jacobian_mapping.N_XYZ[i](0);
       }
 
       return d_F_dd;
@@ -178,7 +168,8 @@ namespace Discret::Elements
           deriv2(Core::LinAlg::Initialization::zero);
       Core::FE::shape_function_deriv2<celltype>(xi, deriv2);
       Xsec.multiply_nt(1.0, deriv2, element_nodes.reference_coordinates, 0.0);
-      N_XYZ_Xsec.multiply_tt(1.0, jacobian_mapping.N_XYZ_, Xsec, 0.0);
+      N_XYZ_Xsec.multiply_tt(
+          1.0, Core::LinAlg::make_matrix_view(jacobian_mapping.N_XYZ), Xsec, 0.0);
 
       for (int i = 0; i < Core::FE::dim<celltype>; ++i)
       {
@@ -220,36 +211,28 @@ namespace Discret::Elements
       return d2_F_dxi_dd;
     }
 
-    static Core::LinAlg::Matrix<Internal::num_str<celltype>,
-        Core::FE::num_nodes(celltype) * Core::FE::dim<celltype>>
-    get_linear_b_operator(const DisplacementBasedLinearizationContainer<celltype>& linearization)
-    {
-      return linearization.Bop_;
-    }
-
-    static void add_internal_force_vector(
+    static void add_internal_force_vector(const JacobianMapping<celltype>& jacobian_mapping,
+        const Core::LinAlg::Tensor<double, Core::FE::dim<celltype>, Core::FE::dim<celltype>>& F,
         const DisplacementBasedLinearizationContainer<celltype>& linearization,
         const Stress<celltype>& stress, const double integration_factor,
         Core::LinAlg::Matrix<Core::FE::num_nodes(celltype) * Core::FE::dim<celltype>, 1>&
             force_vector)
     {
       Discret::Elements::add_internal_force_vector(
-          linearization.Bop_, stress, integration_factor, force_vector);
+          jacobian_mapping, F, stress.pk2_, integration_factor, force_vector);
     }
 
-    static void add_stiffness_matrix(
+    static void add_stiffness_matrix(const JacobianMapping<celltype>& jacobian_mapping,
+        const Core::LinAlg::Tensor<double, Core::FE::dim<celltype>, Core::FE::dim<celltype>>& F,
         const Core::LinAlg::Tensor<double, Core::FE::dim<celltype>>& xi,
         const ShapeFunctionsAndDerivatives<celltype>& shape_functions,
         const DisplacementBasedLinearizationContainer<celltype>& linearization,
-        const JacobianMapping<celltype>& jacobian_mapping, const Stress<celltype>& stress,
-        const double integration_factor,
+        const Stress<celltype>& stress, const double integration_factor,
         Core::LinAlg::Matrix<Core::FE::num_nodes(celltype) * Core::FE::dim<celltype>,
             Core::FE::num_nodes(celltype) * Core::FE::dim<celltype>>& stiffness_matrix)
     {
-      Discret::Elements::add_elastic_stiffness_matrix(
-          linearization.Bop_, stress, integration_factor, stiffness_matrix);
-      Discret::Elements::add_geometric_stiffness_matrix(
-          jacobian_mapping.N_XYZ_, stress, integration_factor, stiffness_matrix);
+      Discret::Elements::add_stiffness_matrix<celltype>(
+          jacobian_mapping, F, stress, integration_factor, stiffness_matrix);
     }
   };
 

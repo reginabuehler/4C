@@ -159,8 +159,7 @@ std::shared_ptr<Core::LinAlg::MultiVector<double>> ScaTra::ScaTraTimIntImpl::cal
     Core::LinAlg::SolverParams solver_params;
     solver_params.refactor = true;
     solver_params.reset = true;
-    solver_->solve_with_multi_vector(
-        massmatrix->epetra_operator(), flux_projected, flux, solver_params);
+    solver_->solve_with_multi_vector(massmatrix, flux_projected, flux, solver_params);
 
     // reset solver
     solver_->reset();
@@ -349,7 +348,8 @@ std::shared_ptr<Core::LinAlg::MultiVector<double>> ScaTra::ScaTraTimIntImpl::cal
 
       // compute normal boundary fluxes
       for (int idof = 0; idof < dofrowmap.num_my_elements(); ++idof)
-        (*normalfluxes)[idof] = (*trueresidual_boundary)[idof] / (*integratedshapefunc)[idof];
+        (*normalfluxes).get_values()[idof] =
+            (*trueresidual_boundary)[idof] / (*integratedshapefunc)[idof];
 
       // get value of boundary integral on this processor
       boundaryint = params.get<double>("area");
@@ -377,8 +377,7 @@ std::shared_ptr<Core::LinAlg::MultiVector<double>> ScaTra::ScaTraTimIntImpl::cal
       Core::LinAlg::SolverParams solver_params;
       solver_params.refactor = true;
       solver_params.reset = true;
-      solver_->solve(massmatrix_boundary->epetra_operator(), normalfluxes, trueresidual_boundary,
-          solver_params);
+      solver_->solve(massmatrix_boundary, normalfluxes, trueresidual_boundary, solver_params);
 
       // reset solver
       solver_->reset();
@@ -617,7 +616,7 @@ void ScaTra::ScaTraTimIntImpl::calc_initial_time_derivative()
   Core::LinAlg::SolverParams solver_params;
   solver_params.refactor = true;
   solver_params.reset = true;
-  solver_->solve(sysmat_->epetra_operator(), phidtnp_, residual_, solver_params);
+  solver_->solve(sysmat_, phidtnp_, residual_, solver_params);
 
   // ToDo: Impose initial time derivatives resulting from Dirichlet boundary conditions.
   // At the moment, the initial time derivatives do not take account of time-dependent

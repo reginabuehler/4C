@@ -12,16 +12,15 @@
 /* headers */
 #include "4C_config.hpp"
 
+#include "4C_solver_nonlin_nox_linearsystem_base.hpp"
+#include "4C_solver_nonlin_nox_scaling.hpp"
 #include "4C_utils_parameter_list.fwd.hpp"
 
 #include <NOX.H>
 #include <NOX_Common.H>
 #include <NOX_Epetra_Group.H>
 #include <NOX_Epetra_Interface_Jacobian.H>
-#include <NOX_Epetra_Interface_Preconditioner.H>
 #include <NOX_Epetra_Interface_Required.H>
-#include <NOX_Epetra_LinearSystem.H>
-#include <NOX_Epetra_Scaling.H>
 #include <NOX_Epetra_Vector.H>
 #include <NOX_Utils.H>
 #include <Teuchos_Time.hpp>
@@ -47,7 +46,7 @@ namespace NOX
     /// linear algebraic solver #Core::LinAlg::Solver.
     ///
 
-    class LinearSystem : public ::NOX::Epetra::LinearSystem
+    class LinearSystem : public NOX::Nln::LinearSystemBase
     {
      protected:
       /// kind of storage and access pattern of tangent matrix
@@ -71,7 +70,7 @@ namespace NOX
           const ::NOX::Epetra::Vector& cloneVector,
           std::shared_ptr<Core::LinAlg::Solver>
               structure_solver,  ///< (used-defined) linear algebraic solver
-          const Teuchos::RCP<::NOX::Epetra::Scaling> scalingObject = Teuchos::null);
+          const std::shared_ptr<NOX::Nln::Scaling> scalingObject = nullptr);
 
 
       /// provide storage pattern of tangent matrix, i.e. the operator
@@ -93,59 +92,14 @@ namespace NOX
       bool applyJacobianInverse(Teuchos::ParameterList& params, const ::NOX::Epetra::Vector& input,
           ::NOX::Epetra::Vector& result) override;
 
-      /// Apply right preconditiong to the given input vector.
-      bool applyRightPreconditioning(bool useTranspose, Teuchos::ParameterList& params,
-          const ::NOX::Epetra::Vector& input, ::NOX::Epetra::Vector& result) const override;
-
-      /// Get the scaling object.
-      Teuchos::RCP<::NOX::Epetra::Scaling> getScaling() override;
-
-      /// Sets the diagonal scaling vector(s) used in scaling the linear system.
-      void resetScaling(const Teuchos::RCP<::NOX::Epetra::Scaling>& s) override;
-
       /// Evaluates the Jacobian based on the solution vector x.
       bool computeJacobian(const ::NOX::Epetra::Vector& x) override;
-
-      /// Explicitly constructs a preconditioner based on the solution vector x and the parameter
-      /// list p.
-      bool createPreconditioner(const ::NOX::Epetra::Vector& x, Teuchos::ParameterList& p,
-          bool recomputeGraph) const override;
-
-      /// Deletes the preconditioner.
-      bool destroyPreconditioner() const override;
-
-      /// Recalculates the preconditioner using an already allocated graph.
-      bool recomputePreconditioner(const ::NOX::Epetra::Vector& x,
-          Teuchos::ParameterList& linearSolverParams) const override;
-
-      /// Evaluates the preconditioner policy at the current state.
-      PreconditionerReusePolicyType getPreconditionerPolicy(
-          bool advanceReuseCounter = true) override;
-
-      /// Indicates whether a preconditioner has been constructed.
-      bool isPreconditionerConstructed() const override;
-
-      /// Indicates whether the linear system has a preconditioner.
-      bool hasPreconditioner() const override;
 
       /// Return Jacobian operator.
       Teuchos::RCP<const Epetra_Operator> getJacobianOperator() const override;
 
       /// Return Jacobian operator.
       Teuchos::RCP<Epetra_Operator> getJacobianOperator() override;
-
-      /// Return preconditioner operator.
-      Teuchos::RCP<const Epetra_Operator> getGeneratedPrecOperator() const override;
-
-      /// Return preconditioner operator.
-      Teuchos::RCP<Epetra_Operator> getGeneratedPrecOperator() override;
-
-      /// Set Jacobian operator for solve.
-      void setJacobianOperatorForSolve(
-          const Teuchos::RCP<const Epetra_Operator>& solveJacOp) override;
-
-      /// Set preconditioner operator for solve.
-      void setPrecOperatorForSolve(const Teuchos::RCP<const Epetra_Operator>& solvePrecOp) override;
 
      protected:
       /// throw an error
@@ -155,12 +109,9 @@ namespace NOX
       ::NOX::Utils utils_;
 
       std::shared_ptr<::NOX::Epetra::Interface::Jacobian> jacInterfacePtr_;
-      std::shared_ptr<::NOX::Epetra::Interface::Preconditioner> precInterfacePtr_;
       OperatorType jacType_;
-      OperatorType precType_;
       mutable std::shared_ptr<Epetra_Operator> jacPtr_;
-      mutable std::shared_ptr<Epetra_Operator> precPtr_;
-      Teuchos::RCP<::NOX::Epetra::Scaling> scaling_;
+      std::shared_ptr<NOX::Nln::Scaling> scaling_;
       mutable std::shared_ptr<::NOX::Epetra::Vector> tmpVectorPtr_;
       mutable double conditionNumberEstimate_;
 

@@ -108,6 +108,7 @@ four_c_test(TEST_FILE beam3r_herm2line3_static_beam_to_solid_surface_coupling_un
 four_c_test(TEST_FILE beam3r_herm2line3_static_beam_to_solid_surface_volume_coupling_mortar.4C.yaml NP 2)
 four_c_test(TEST_FILE beam3r_herm2line3_static_beam_to_solid_volume_meshtying_2d-3d.4C.yaml NP 3)
 four_c_test(TEST_FILE beam3r_herm2line3_static_beam_to_solid_volume_meshtying_2d-3d_mortar.4C.yaml NP 3)
+four_c_test(TEST_FILE beam3r_herm2line3_static_beam_to_solid_volume_meshtying_2d-3d_mortar_gauss_point_projections.4C.yaml NP 1)
 four_c_test(TEST_FILE beam3r_herm2line3_static_beam_to_solid_volume_meshtying_beam_along_solid_boundary_gauss_point_projection_boundary_segmentation.4C.yaml NP 2)
 four_c_test(TEST_FILE beam3r_herm2line3_static_beam_to_solid_volume_meshtying_beam_along_solid_boundary_gauss_point_projection_without_boundary_segmentation.4C.yaml NP 2)
 four_c_test(TEST_FILE beam3r_herm2line3_static_beam_to_solid_volume_meshtying_beam_along_solid_boundary_segmentation.4C.yaml NP 2)
@@ -142,6 +143,7 @@ four_c_test(TEST_FILE beam3r_herm2line3_static_BTBpotential_repulsiveLennardJone
 four_c_test(TEST_FILE beam3r_herm2line3_static_contact_penalty_linpen_twobeamstwisting.4C.yaml NP 2)
 four_c_test(TEST_FILE beam3r_herm2line3_static_contact_penalty_linpen_twobeamstwisting.4C.yaml)
 four_c_test(TEST_FILE beam3r_herm2line3_static_contact_penalty_linposquadpen_beamrotatingoverarc.4C.yaml NP 2)
+four_c_test(TEST_FILE beam3r_herm2line3_static_contact_penalty_with_positional_coupling.yaml NP 1)
 four_c_test(TEST_FILE beam3r_herm2line3_static_crosslinking_beam3rline2_linkedcantilevers_endload.4C.yaml NP 2 RESTART_STEP 5)
 four_c_test(TEST_FILE beam3r_herm2line3_static_crosslinking_truss_linkedcantilevers_endload.4C.yaml NP 2 RESTART_STEP 5)
 four_c_test(TEST_FILE beam3r_herm2line3_static_LJ_singlelengthspec_smallsepapprox_regularization_linextpol_twocrossedbeams_pulloff.4C.yaml NP 2)
@@ -1084,6 +1086,7 @@ four_c_test(TEST_FILE porofluid_pressure_based_elast_scatra_2D_quad4_hyperthermi
 four_c_test(TEST_FILE porofluid_pressure_based_elast_scatra_2D_quad4_linebased_artery_coupling_mono.4C.yaml NP 2 RESTART_STEP 9)
 four_c_test(TEST_FILE porofluid_pressure_based_elast_scatra_2D_quad4_linebased_artery_coupling_mono_GPTS.4C.yaml NP 2 RESTART_STEP 8)
 four_c_test(TEST_FILE porofluid_pressure_based_elast_scatra_2D_quad4_linebased_artery_coupling_mono_MP.4C.yaml NP 2 RESTART_STEP 8)
+four_c_test(TEST_FILE porofluid_pressure_based_elast_scatra_2D_quad4_linebased_artery_coupling_mono_teko.4C.yaml NP 3)
 four_c_test(TEST_FILE porofluid_pressure_based_elast_scatra_2D_quad4_linebased_artery_coupling_vessel_collapse.4C.yaml NP 3 RESTART_STEP 48)
 four_c_test(TEST_FILE porofluid_pressure_based_elast_scatra_2D_quad4_linebased_artery_coupling_vessel_collapse_free_hanging.4C.yaml NP 3)
 four_c_test(TEST_FILE porofluid_pressure_based_elast_scatra_2D_quad4_mono_FD.4C.yaml)
@@ -1920,9 +1923,12 @@ four_c_test(TEST_FILE xfsi_push_1D_1st_order.4C.yaml)
 four_c_test(TEST_FILE xfsi_push_1D_2nd_order.4C.yaml)
 
 if (FOUR_C_WITH_ARBORX)
+    four_c_test(TEST_FILE beam3eb_static_beam_to_solid_volume_meshtying_beam_to_beam_contact_boundingvolume.4C.yaml NP 1)
     four_c_test(TEST_FILE beam3eb_static_beam_to_solid_volume_meshtying_beam_to_beam_contact_boundingvolume.4C.yaml NP 2 RESTART_STEP 3)
     four_c_test(TEST_FILE beam3eb_static_beam_to_solid_volume_meshtying_monolithic_partitioning.4C.yaml NP 3)
+    four_c_test(TEST_FILE beam3r_herm2line3_static_beam_and_solid_beam_output_with_monolithic_partitioning.4C.yaml NP 2)
     four_c_test(TEST_FILE beam3r_herm2line3_static_beam_to_solid_surface_coupling_gpts_reference_forced_boundingvolume.4C.yaml NP 3 RESTART_STEP 2)
+    four_c_test(TEST_FILE beam3r_herm2line3_static_beam_to_solid_surface_contact_mortar_line2_gap_variation_reference_segmentation_penalty_lin_quad_point_coupling.4C.yaml NP 1)
     four_c_test(TEST_FILE beam3r_herm2line3_static_contact_penalty_linposquadpen_beamrotatingoverarc_boundingvolume.4C.yaml NP 2)
     four_c_test(TEST_FILE beam3r_herm2line3_static_point_coupling_BTSPH_contact_stent_honeycomb_stretch_r01_circ10_boundingvolume.4C.yaml NP 3 RESTART_STEP 20)
     four_c_test(TEST_FILE embeddedmesh_parallel_bending_beam.4C.yaml NP 3)
@@ -1969,7 +1975,6 @@ four_c_test_tutorial(PREFIX tutorial_fsi_2d NP 2 COPY_FILES ${PROJECT_SOURCE_DIR
 four_c_test_tutorial(PREFIX tutorial_fsi_3d NP 2 COPY_FILES ${PROJECT_SOURCE_DIR}/tests/input_files/fsi_part_struct_solver.xml ${PROJECT_SOURCE_DIR}/tests/tutorials/tutorial_fsi_3d.e)
 four_c_test_tutorial(PREFIX tutorial_solid NP 3 COPY_FILES ${PROJECT_SOURCE_DIR}/tests/input_files/xml/multigrid/elasticity_template.xml ${PROJECT_SOURCE_DIR}/tests/tutorials/tutorial_solid_geo.e)
 
-# four_c_test_post_processing
 four_c_test_post_processing(constr3D_MPC_direct.4C.yaml 2 2 ndxyz ndxyz 25)
 four_c_test_post_processing(contact2D_onlylin_stdlagr.4C.yaml 2 2 ndxyz ndxyz 50)
 four_c_test_post_processing(contact2D_simpler.4C.yaml 2 2 ndxyz ndxyz 50)
@@ -1993,6 +1998,7 @@ four_c_test_post_processing(w1t6_patch_linear.4C.yaml 2 2 cxyz cxyz 1)
 
 # four_c_test_vtk
 four_c_test_vtk(beam_runtime_ghosting_output-vtk-beam.4C.yaml beam_runtime_ghosting_output.4C.yaml 3 xxx-structure-beams.pvd ref/beam_runtime_ghosting_output-vtk/structure-beams.pvd 1e-08 0.0 1.0)
+four_c_test_vtk(beam3r_herm2line3_static_contact_penalty_linposquadpen_beamrotatingoverarc-vtk.4C.yaml beam3r_herm2line3_static_contact_penalty_linposquadpen_beamrotatingoverarc.4C.yaml 2 xxx-beam-contact.pvd ref/beam3r_herm2line3_static_contact_penalty_linposquadpen_beamrotatingoverarc-vtk/beam-contact.pvd 1e-08 2.3)
 four_c_test_vtk(beam3r_herm2line2_static_test1_vtk.4C.yaml beam3r_herm2line2_static_test1.4C.yaml 2 xxx-structure-beams.pvd ref/beam3r_herm2line2_static_test1-structure-beams.pvd 1e-06)
 four_c_test_vtk(beam3r_herm2line3_backweuler_browndyn_crosslinking_beam3rline2_vtk.4C.yaml beam3r_herm2line3_backweuler_browndyn_crosslinking_beam3rline2.4C.yaml 2 xxx-structure-beams.pvd ref/beam3r_herm2line3_backweuler_browndyn_crosslinking_beam3rline2-vtk/structure-beams.pvd 1e-08 0.0025 0.0085)
 four_c_test_vtk(beam3r_herm2line3_static_beam_to_solid_surface_contact_ironing_penalty_gap_variation_segmentation_lin_quad-vtk-averaged-normals.4C.yaml beam3r_herm2line3_static_beam_to_solid_surface_contact_ironing_penalty_gap_variation_segmentation_lin_quad.4C.yaml 3 xxx-beam-to-solid-surface-contact-averaged-normals.pvd ref/beam3r_herm2line3_static_beam_to_solid_surface_contact_ironing_penalty_gap_variation_segmentation_lin_quad/beam-to-solid-surface-contact-averaged-normals.pvd 1e-08 2.5000001e-01 3.0)
@@ -2101,5 +2107,4 @@ four_c_test_vtk(structure_solid_beam_element_gid_runtime_output-vtk-beam.4C.yaml
 four_c_test_vtk(structure_solid_beam_element_gid_runtime_output-vtk-solid.4C.yaml structure_solid_beam_element_gid_runtime_output.4C.yaml 2 xxx-structure.pvd ref/structure_solid_beam_element_gid_runtime_output-vtk/structure.pvd 1e-08 1e-08 1.0)
 four_c_test_vtk(thermo3D_annulus_anisotropic_statics_vtk_thermo.4C.yaml thermo3D_annulus_anisotropic_statics.4C.yaml 3 xxx-thermo.pvd ref/thermo3D_annulus_anisotropic_statics-thermo.pvd 1e-08)
 four_c_test_vtk(thermo3D_annulus_elementwise_anisotropic_statics_vtk_thermo.4C.yaml thermo3D_annulus_elementwise_anisotropic_statics.4C.yaml 3 xxx-thermo.pvd ref/thermo3D_annulus_elementwise_anisotropic_statics-thermo.pvd 1e-08)
-
 # cmake-format: on

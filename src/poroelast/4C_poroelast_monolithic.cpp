@@ -607,7 +607,7 @@ void PoroElast::Monolithic::linear_solve()
 
     solver_params.refactor = true;
     solver_params.reset = iter_ == 1;
-    solver_->solve(sparse->epetra_operator(), iterinc_, rhs_, solver_params);
+    solver_->solve(sparse, iterinc_, rhs_, solver_params);
   }
   else  // use bgs2x2_operator
   {
@@ -618,7 +618,7 @@ void PoroElast::Monolithic::linear_solve()
     // standard solver call
     solver_params.refactor = true;
     solver_params.reset = iter_ == 1;
-    solver_->solve(systemmatrix_->epetra_operator(), iterinc_, rhs_, solver_params);
+    solver_->solve(systemmatrix_, iterinc_, rhs_, solver_params);
   }
 
   equilibration_->unequilibrate_increment(iterinc_);
@@ -699,11 +699,13 @@ void PoroElast::Monolithic::create_linear_solver()
   solver_->put_solver_params_to_sub_params("Inverse1", ssolverparams,
       Global::Problem::instance()->solver_params_callback(),
       Teuchos::getIntegralValue<Core::IO::Verbositylevel>(
-          Global::Problem::instance()->io_params(), "VERBOSITY"));
+          Global::Problem::instance()->io_params(), "VERBOSITY"),
+      get_comm());
   solver_->put_solver_params_to_sub_params("Inverse2", fsolverparams,
       Global::Problem::instance()->solver_params_callback(),
       Teuchos::getIntegralValue<Core::IO::Verbositylevel>(
-          Global::Problem::instance()->io_params(), "VERBOSITY"));
+          Global::Problem::instance()->io_params(), "VERBOSITY"),
+      get_comm());
 
   switch (azprectype)
   {

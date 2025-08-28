@@ -336,15 +336,33 @@ void Solid::ModelEvaluator::BeamInteraction::set_sub_model_types()
   if (beampotconditions.size() > 0)
     submodeltypes_->insert(Inpar::BeamInteraction::submodel_potential);
 
-  // Check if all all combinations of submodel evaluators work
-  if (Teuchos::getIntegralValue<Inpar::BeamInteraction::Strategy>(
-          Global::Problem::instance()->beam_interaction_params().sublist("BEAM TO BEAM CONTACT"),
-          "STRATEGY") != Inpar::BeamInteraction::bstr_none and
-      beampenaltycouplingconditions.size() > 0)
-    FOUR_C_THROW(
-        "It is not yet possible to use beam-to-beam contact in combination with beam-to-beam point "
-        "coupling because every coupling point is also interpreted as a point of contact between 2 "
-        "beams.");
+  // extract beam to beam contact conditions
+  std::vector<const Core::Conditions::Condition*> beamtobeamcontactconditions;
+  discret_ptr_->get_condition("BeamToBeamContact", beamtobeamcontactconditions);
+
+  // Ensure that no point coupling condition connects two beams that are possibly in contact with
+  // each other.
+  for (auto beam_point_coupling_condition : beampenaltycouplingconditions)
+  {
+    // get all nodes of beam to beam point coupling condition
+    const std::vector<int>& nodes = *(beam_point_coupling_condition->get_nodes());
+    if (nodes.size() != 2)
+      FOUR_C_THROW("Beam-to-beam point coupling condition should contain exactly two nodes.");
+    for (auto beam_to_beam_contact_condition : beamtobeamcontactconditions)
+    {
+      if (beam_to_beam_contact_condition->contains_node(nodes[0]) and
+          beam_to_beam_contact_condition->contains_node(nodes[1]))
+      {
+        FOUR_C_THROW(
+            "It is not possible to use beam-to-beam contact in combination with "
+            "beam-to-beam point coupling for the same node pair. Please reconsider the specified "
+            "interaction conditions with the ids {} and {}, since they are intersecting at the "
+            "nodes with ids {} and {}",
+            beam_to_beam_contact_condition->id(), beam_point_coupling_condition->id(), nodes[0],
+            nodes[1]);
+      }
+    }
+  }
 }
 
 /*----------------------------------------------------------------------------*
@@ -977,7 +995,7 @@ bool Solid::ModelEvaluator::BeamInteraction::check_if_beam_discret_redistributio
       // about a periodic boundary shift of a node between dis_at_last_redistr_ and the current
       // disp)
       doflid[dim] = dis_at_last_redistr_->get_map().lid(dofnode[dim]);
-      (dis_increment)[doflid[dim]] =
+      (dis_increment).get_values()[doflid[dim]] =
           (*global_state().get_dis_np())[doflid[dim]] - (*dis_at_last_redistr_)[doflid[dim]];
     }
   }
@@ -1184,8 +1202,8 @@ void Solid::ModelEvaluator::BeamInteraction::update_maps()
   // force
   ia_force_beaminteraction_ =
       std::make_shared<Core::LinAlg::Vector<double>>(*ia_discret_->dof_row_map(), true);
-  ia_state_ptr_->get_force_np() = std::make_shared<Core::LinAlg::FEVector<double>>(
-      ia_discret_->dof_row_map()->get_epetra_block_map(), true);
+  ia_state_ptr_->get_force_np() =
+      std::make_shared<Core::LinAlg::FEVector<double>>(*ia_discret_->dof_row_map(), true);
 
   // stiff
   ia_state_ptr_->get_stiff() = std::make_shared<Core::LinAlg::SparseMatrix>(

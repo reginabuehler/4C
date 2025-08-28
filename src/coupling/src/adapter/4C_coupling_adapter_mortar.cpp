@@ -693,11 +693,12 @@ void Coupling::Adapter::CouplingMortar::mesh_relocation(Core::FE::Discretization
     for (int k = 0; k < dim; ++k)
     {
       int dof = mtnode->dofs()[k];
-      (*Xmaster)[(Xmaster->get_map()).lid(dof)] = mtnode->x()[k];
+      (*Xmaster).get_values()[(Xmaster->get_map()).lid(dof)] = mtnode->x()[k];
 
       // add ALE displacements, if required
       if (idisp != nullptr)
-        (*Xmaster)[(Xmaster->get_map()).lid(dof)] += (*idisp)[(idisp->get_map()).lid(dof)];
+        (*Xmaster).get_values()[(Xmaster->get_map()).lid(dof)] +=
+            (*idisp)[(idisp->get_map()).lid(dof)];
     }
   }
 
@@ -1009,7 +1010,7 @@ void Coupling::Adapter::CouplingMortar::create_p()
     {
       std::cout << "WARNING: Diagonal entry of D matrix (value = " << (*diag)[i]
                 << ") is skipped because it is less than 1e-12!!!" << std::endl;
-      (*diag)[i] = 1.0;
+      (*diag).get_values()[i] = 1.0;
     }
   }
 
@@ -1078,11 +1079,9 @@ void Coupling::Adapter::CouplingMortar::evaluate(
   std::shared_ptr<Core::LinAlg::Vector<double>> idisp_master_slave =
       Core::LinAlg::create_vector(*dofrowmap, true);
   err = idisp_master_slave->import(*idispma, master_importer, Add);
-  if (err != 0)
-    FOUR_C_THROW("Import failed with error code {}. See Epetra source code for details.", err);
+  if (err != 0) FOUR_C_THROW("Import failed with error code {}.", err);
   err = idisp_master_slave->import(*idispsl, slaveImporter, Add);
-  if (err != 0)
-    FOUR_C_THROW("Import failed with error code {}. See Epetra source code for details.", err);
+  if (err != 0) FOUR_C_THROW("Import failed with error code {}.", err);
 
   // set new displacement state in mortar interface
   interface_->set_state(Mortar::state_new_displacement, *idisp_master_slave);
@@ -1168,10 +1167,10 @@ void Coupling::Adapter::CouplingMortar::matrix_row_col_transform()
       FOUR_C_THROW("Dof maps based on initial parallel distribution are wrong!");
 
     // transform everything back to old distribution
-    D_ = Mortar::matrix_row_col_transform(*D_, *pslavedofrowmap_, *pslavedofrowmap_);
-    M_ = Mortar::matrix_row_col_transform(*M_, *pslavedofrowmap_, *pmasterdofrowmap_);
-    Dinv_ = Mortar::matrix_row_col_transform(*Dinv_, *pslavedofrowmap_, *pslavedofrowmap_);
-    P_ = Mortar::matrix_row_col_transform(*P_, *pslavedofrowmap_, *pmasterdofrowmap_);
+    D_ = Core::LinAlg::matrix_row_col_transform(*D_, *pslavedofrowmap_, *pslavedofrowmap_);
+    M_ = Core::LinAlg::matrix_row_col_transform(*M_, *pslavedofrowmap_, *pmasterdofrowmap_);
+    Dinv_ = Core::LinAlg::matrix_row_col_transform(*Dinv_, *pslavedofrowmap_, *pslavedofrowmap_);
+    P_ = Core::LinAlg::matrix_row_col_transform(*P_, *pslavedofrowmap_, *pmasterdofrowmap_);
   }
 }
 
@@ -1219,7 +1218,7 @@ void Coupling::Adapter::CouplingMortar::evaluate_with_mesh_relocation(
 
   // set zero diagonal values to dummy 1.0
   for (int i = 0; i < diag->local_length(); ++i)
-    if ((*diag)[i] == 0.0) (*diag)[i] = 1.0;
+    if ((*diag)[i] == 0.0) (*diag).get_values()[i] = 1.0;
 
   // scalar inversion of diagonal values
   diag->reciprocal(*diag);

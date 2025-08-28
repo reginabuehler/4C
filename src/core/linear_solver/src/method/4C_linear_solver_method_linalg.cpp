@@ -18,6 +18,8 @@
 #include <Teuchos_ParameterList.hpp>
 #include <Teuchos_StandardParameterEntryValidators.hpp>
 #include <Teuchos_TimeMonitor.hpp>
+#include <Teuchos_XMLParameterListHelpers.hpp>
+#include <Xpetra_EpetraUtils.hpp>
 
 #include <filesystem>
 
@@ -31,7 +33,7 @@ Core::LinAlg::Solver::Solver(const Teuchos::ParameterList& inparams, MPI_Comm co
     : comm_(comm), params_(std::make_shared<Teuchos::ParameterList>())
 {
   if (translate_params_to_belos)
-    *params_ = translate_solver_parameters(inparams, get_solver_params, verbosity);
+    *params_ = translate_solver_parameters(inparams, get_solver_params, verbosity, comm);
   else
     *params_ = inparams;
 }
@@ -146,7 +148,7 @@ void Core::LinAlg::Solver::reset_tolerance()
 
 /*----------------------------------------------------------------------*
  *----------------------------------------------------------------------*/
-void Core::LinAlg::Solver::setup(std::shared_ptr<Epetra_Operator> matrix,
+void Core::LinAlg::Solver::setup(std::shared_ptr<Core::LinAlg::SparseOperator> matrix,
     std::shared_ptr<Core::LinAlg::MultiVector<double>> x,
     std::shared_ptr<Core::LinAlg::MultiVector<double>> b, const SolverParams& params)
 {
@@ -180,15 +182,11 @@ void Core::LinAlg::Solver::setup(std::shared_ptr<Epetra_Operator> matrix,
 
     if ("belos" == solvertype)
     {
-      solver_ = std::make_shared<
-          Core::LinearSolver::IterativeSolver<Epetra_Operator, Core::LinAlg::MultiVector<double>>>(
-          comm_, Solver::params());
+      solver_ = std::make_shared<Core::LinearSolver::IterativeSolver>(comm_, Solver::params());
     }
     else if ("umfpack" == solvertype or "superlu" == solvertype)
     {
-      solver_ = std::make_shared<
-          Core::LinearSolver::DirectSolver<Epetra_Operator, Core::LinAlg::MultiVector<double>>>(
-          solvertype);
+      solver_ = std::make_shared<Core::LinearSolver::DirectSolver>(solvertype);
     }
     else
       FOUR_C_THROW("Unknown type of solver");
@@ -200,7 +198,8 @@ void Core::LinAlg::Solver::setup(std::shared_ptr<Epetra_Operator> matrix,
 /*----------------------------------------------------------------------*
  *----------------------------------------------------------------------*/
 
-int Core::LinAlg::Solver::solve_with_multi_vector(std::shared_ptr<Epetra_Operator> matrix,
+int Core::LinAlg::Solver::solve_with_multi_vector(
+    std::shared_ptr<Core::LinAlg::SparseOperator> matrix,
     std::shared_ptr<Core::LinAlg::MultiVector<double>> x,
     std::shared_ptr<Core::LinAlg::MultiVector<double>> b, const Core::LinAlg::SolverParams& params)
 {
@@ -215,7 +214,7 @@ int Core::LinAlg::Solver::solve_with_multi_vector(std::shared_ptr<Epetra_Operato
   return error_value;
 }
 
-int Core::LinAlg::Solver::solve(std::shared_ptr<Epetra_Operator> matrix,
+int Core::LinAlg::Solver::solve(std::shared_ptr<Core::LinAlg::SparseOperator> matrix,
     std::shared_ptr<Core::LinAlg::Vector<double>> x,
     std::shared_ptr<Core::LinAlg::Vector<double>> b, const SolverParams& params)
 {
@@ -273,7 +272,7 @@ Teuchos::ParameterList translate_four_c_to_teko(
  *------------------------------------------------------------------------------------------------*/
 Teuchos::ParameterList translate_four_c_to_belos(const Teuchos::ParameterList& inparams,
     const std::function<const Teuchos::ParameterList&(int)>& get_solver_params,
-    Core::IO::Verbositylevel verbosity)
+    const Core::IO::Verbositylevel verbosity, const MPI_Comm& comm)
 {
   Teuchos::ParameterList outparams;
   outparams.set("solver", "belos");
@@ -281,6 +280,7 @@ Teuchos::ParameterList translate_four_c_to_belos(const Teuchos::ParameterList& i
 
   beloslist.set("reuse", inparams.get<int>("AZREUSE"));
   beloslist.set("ncall", 0);
+  beloslist.set("max linear iterations for stall", inparams.get<int>("REUSE_STALL_ITER"));
 
   beloslist.set("THROW_IF_UNCONVERGED", inparams.get<bool>("THROW_IF_UNCONVERGED"));
 
@@ -289,6 +289,18 @@ Teuchos::ParameterList translate_four_c_to_belos(const Teuchos::ParameterList& i
   if (xmlfile)
   {
     beloslist.set("SOLVER_XML_FILE", xmlfile->string());
+
+    const std::string xml_file_name = xmlfile->string();
+    Teuchos::ParameterList belos_parameters;
+    Teuchos::updateParametersFromXmlFileAndBroadcast(xml_file_name,
+        Teuchos::Ptr<Teuchos::ParameterList>(&belos_parameters),
+        *Xpetra::toXpetra(Core::Communication::as_epetra_comm(comm)));
+
+    // required for adaptive linear solver tolerance
+    beloslist.set("Convergence Tolerance",
+        belos_parameters.sublist("GMRES").get<double>("Convergence Tolerance"));
+    beloslist.set("Implicit Residual Scaling",
+        belos_parameters.sublist("GMRES").get<std::string>("Implicit Residual Scaling"));
   }
   else
   {
@@ -403,7 +415,7 @@ Teuchos::ParameterList translate_four_c_to_belos(const Teuchos::ParameterList& i
 Teuchos::ParameterList Core::LinAlg::Solver::translate_solver_parameters(
     const Teuchos::ParameterList& inparams,
     const std::function<const Teuchos::ParameterList&(int)>& get_solver_params,
-    Core::IO::Verbositylevel verbosity)
+    const Core::IO::Verbositylevel verbosity, const MPI_Comm& comm)
 {
   TEUCHOS_FUNC_TIME_MONITOR("Core::LinAlg::Solver:  0)   translate_solver_parameters");
 
@@ -425,7 +437,7 @@ Teuchos::ParameterList Core::LinAlg::Solver::translate_solver_parameters(
       outparams.set("solver", "superlu");
       break;
     case Core::LinearSolver::SolverType::belos:
-      outparams = translate_four_c_to_belos(inparams, get_solver_params, verbosity);
+      outparams = translate_four_c_to_belos(inparams, get_solver_params, verbosity, comm);
       break;
     default:
       FOUR_C_THROW("Unsupported type of solver");

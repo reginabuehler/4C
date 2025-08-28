@@ -14,7 +14,6 @@
 #include "4C_global_data.hpp"
 #include "4C_inpar_cardiovascular0d.hpp"
 #include "4C_inpar_structure.hpp"
-#include "4C_io_control.hpp"
 #include "4C_linalg_utils_sparse_algebra_create.hpp"
 #include "4C_linear_solver_method.hpp"
 #include "4C_linear_solver_method_linalg.hpp"
@@ -24,14 +23,6 @@
 #include <Teuchos_ParameterList.hpp>
 
 FOUR_C_NAMESPACE_OPEN
-
-
-/*----------------------------------------------------------------------------*
- *----------------------------------------------------------------------------*/
-Solid::SOLVER::Factory::Factory()
-{
-  // empty
-}
 
 
 /*----------------------------------------------------------------------------*
@@ -123,6 +114,7 @@ std::shared_ptr<Core::LinAlg::Solver> Solid::SOLVER::Factory::build_structure_li
     }
     case Core::LinearSolver::PreconditionerType::block_teko:
     {
+      const unsigned solid_dofset(0u);
       // Create the beam and solid maps
       std::vector<int> solid_dof_gids;
       std::vector<int> solid_node_gids;
@@ -133,11 +125,11 @@ std::shared_ptr<Core::LinAlg::Solver> Solid::SOLVER::Factory::build_structure_li
         if (const Core::Nodes::Node* node = actdis.l_row_node(i);
             BeamInteraction::Utils::is_beam_node(*node))
         {
-          actdis.dof(node, beam_dof_gids);
+          actdis.dof(solid_dofset, node, beam_dof_gids);
         }
         else
         {
-          actdis.dof(node, solid_dof_gids);
+          actdis.dof(solid_dofset, node, solid_dof_gids);
           solid_node_gids.push_back(node->id());
         }
       }
@@ -333,7 +325,8 @@ std::shared_ptr<Core::LinAlg::Solver> Solid::SOLVER::Factory::build_lag_pen_cons
           Global::Problem::instance()->solver_params(linsolvernumber),
           Global::Problem::instance()->solver_params_callback(),
           Teuchos::getIntegralValue<Core::IO::Verbositylevel>(
-              Global::Problem::instance()->io_params(), "VERBOSITY"));
+              Global::Problem::instance()->io_params(), "VERBOSITY"),
+          actdis.get_comm());
     }
     break;
     case Inpar::Solid::consolve_simple:
@@ -351,7 +344,8 @@ std::shared_ptr<Core::LinAlg::Solver> Solid::SOLVER::Factory::build_lag_pen_cons
           Global::Problem::instance()->solver_params(linsolvernumber),
           Global::Problem::instance()->solver_params_callback(),
           Teuchos::getIntegralValue<Core::IO::Verbositylevel>(
-              Global::Problem::instance()->io_params(), "VERBOSITY"));
+              Global::Problem::instance()->io_params(), "VERBOSITY"),
+          actdis.get_comm());
 
       if (!linsolver->params().isSublist("Belos Parameters"))
         FOUR_C_THROW("Iterative solver expected!");
@@ -409,7 +403,8 @@ std::shared_ptr<Core::LinAlg::Solver> Solid::SOLVER::Factory::build_cardiovascul
       Global::Problem::instance()->solver_params(linsolvernumber),
       Global::Problem::instance()->solver_params_callback(),
       Teuchos::getIntegralValue<Core::IO::Verbositylevel>(
-          Global::Problem::instance()->io_params(), "VERBOSITY"));
+          Global::Problem::instance()->io_params(), "VERBOSITY"),
+      actdis.get_comm());
 
   // solution algorithm - direct or simple
   Inpar::Cardiovascular0D::Cardvasc0DSolveAlgo algochoice =
@@ -426,14 +421,16 @@ std::shared_ptr<Core::LinAlg::Solver> Solid::SOLVER::Factory::build_cardiovascul
           Global::Problem::instance()->solver_params(linsolvernumber),
           Global::Problem::instance()->solver_params_callback(),
           Teuchos::getIntegralValue<Core::IO::Verbositylevel>(
-              Global::Problem::instance()->io_params(), "VERBOSITY"));
+              Global::Problem::instance()->io_params(), "VERBOSITY"),
+          actdis.get_comm());
       actdis.compute_null_space_if_necessary(linsolver->params().sublist("Inverse1"), true);
 
       linsolver->put_solver_params_to_sub_params("Inverse2",
           Global::Problem::instance()->solver_params(linsolvernumber),
           Global::Problem::instance()->solver_params_callback(),
           Teuchos::getIntegralValue<Core::IO::Verbositylevel>(
-              Global::Problem::instance()->io_params(), "VERBOSITY"));
+              Global::Problem::instance()->io_params(), "VERBOSITY"),
+          actdis.get_comm());
       actdis.compute_null_space_if_necessary(linsolver->params().sublist("Inverse2"), true);
       break;
     }

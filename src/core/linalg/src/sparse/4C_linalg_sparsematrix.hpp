@@ -111,10 +111,6 @@ namespace Core::LinAlg
     SparseMatrix(const Epetra_Map& rowmap, const int npr, bool explicitdirichlet = true,
         bool savegraph = false, MatrixType matrixtype = CRS_MATRIX);
 
-    // TODO remove Epetra_Map here
-    SparseMatrix(const Epetra_Map& rowmap, std::vector<int>& numentries,
-        bool explicitdirichlet = true, bool savegraph = false, MatrixType matrixtype = CRS_MATRIX);
-
     /// construction of sparse matrix
     /*!
        Makes either a deep copy of the Epetra_CrsMatrix or Epetra_FECrsMatrix.
@@ -187,7 +183,7 @@ namespace Core::LinAlg
     /// destroy the underlying Epetra objects
     virtual bool destroy(bool throw_exception = true);
 
-    /// assemble method for Epetra_CrsMatrices, if ONLY local values are assembled
+    /// assemble method, if ONLY local values are assembled
     void assemble(int eid, const std::vector<int>& lmstride,
         const Core::LinAlg::SerialDenseMatrix& Aele, const std::vector<int>& lm,
         const std::vector<int>& lmowner) override
@@ -195,19 +191,19 @@ namespace Core::LinAlg
       assemble(eid, lmstride, Aele, lm, lmowner, lm);
     }
 
-    /// assemble method for Epetra_CrsMatrices, if ONLY local values are assembled
+    /// assemble method, if ONLY local values are assembled
     virtual void assemble(int eid, const Core::LinAlg::SerialDenseMatrix& Aele,
         const std::vector<int>& lm, const std::vector<int>& lmowner)
     {
       assemble(eid, Aele, lm, lmowner, lm);
     }
 
-    /// assemble method for Epetra_CrsMatrices, if ONLY local values are assembled
+    /// assemble method, if ONLY local values are assembled
     void assemble(int eid, const std::vector<int>& lmstride,
         const Core::LinAlg::SerialDenseMatrix& Aele, const std::vector<int>& lmrow,
         const std::vector<int>& lmrowowner, const std::vector<int>& lmcol) override;
 
-    /// assemble method for Epetra_CrsMatrices, if ONLY local values are assembled
+    /// assemble method, if ONLY local values are assembled
     void assemble(int eid, const Core::LinAlg::SerialDenseMatrix& Aele,
         const std::vector<int>& lmrow, const std::vector<int>& lmrowowner,
         const std::vector<int>& lmcol);
@@ -217,9 +213,9 @@ namespace Core::LinAlg
 
 
     /*
-     * \brief Set a single value in a Epetra_FECrsMatrix
+     * \brief Set a single value
      *
-     * This method inserts a new entry in a EpetraFECrsMatrix if it does not yet exist. If the entry
+     * This method inserts a new entry if it does not yet exist. If the entry
      * already exists, it is overwritten.
      *
      * \params[in] val Value to insert
@@ -229,71 +225,59 @@ namespace Core::LinAlg
     void set_value(double val, int rgid, int cgid);
 
     /*!
-      Assemble method for an Epetra_FECrsMatrix.
-      This method is also able to handle the assembly of nonlocal values.
-      It sets the doGlobalAssemble-flag to true and causes the
-      GlobalAssemble() method to redistribute the non-local
-      values to their owning procs, such that fill_complete can be safely
-      called on this matrix.
-
-      NOTE: This methods checks if rowowner == myrank. Only in this case
-      values are set. This is needed if the method is called in a loop over
-      column elements (which is the standard in 4C) to avoid multiple same entries.
+     * \brief Assemble method for an FE-style sparse matrix
+     *
+     * This method is also able to handle the assembly of nonlocal values.
+     * It sets the doGlobalAssemble-flag to true and causes the
+     * GlobalAssemble() method to redistribute the non-local
+     * values to their owning procs, such that fill_complete can be safely
+     * called on this matrix.
+     *
+     * \note This methods checks if rowowner == myrank. Only in this case
+     * values are set. This is needed if the method is called in a loop over
+     * column elements (which is the standard in 4C) to avoid multiple same entries.
      */
     void fe_assemble(const Core::LinAlg::SerialDenseMatrix& Aele, const std::vector<int>& lmrow,
         const std::vector<int>& lmrowowner, const std::vector<int>& lmcol);
 
     /*!
-      Assemble method for an Epetra_FECrsMatrices.
-      This method is also able to handle the assembly of nonlocal values.
-      It sets the doGlobalAssemble-flag to true and causes the
-      GlobalAssemble() method to redistribute the non-local
-      values to their owning procs, such that fill_complete can be safely
-      called on this matrix.
+     * \brief Assemble method for an FE-style sparse matrix
+     *
+     * This method is also able to handle the assembly of nonlocal values.
+     * It sets the doGlobalAssemble-flag to true and causes the
+     * GlobalAssemble() method to redistribute the non-local
+     * values to their owning procs, such that fill_complete can be safely
+     * called on this matrix.
      */
     void fe_assemble(const Core::LinAlg::SerialDenseMatrix& Aele, const std::vector<int>& lmrow,
         const std::vector<int>& lmcol);
 
     /*!
-      Assemble method for an Epetra_FECrsMatrices.
-      This method is also able
-      to handle the assembly of nonlocal values.
-      It sets the doGlobalAssemble-flag to true and causes the
-      GlobalAssemble -method() to redistribute the non-local
-      values to their owning procs, such that fill_complete can be safely
-      called on this matrix.
+     * \brief Assemble method for an FE-style sparse matrix
+     *
+     * This method is also able
+     * to handle the assembly of nonlocal values.
+     * It sets the doGlobalAssemble-flag to true and causes the
+     * GlobalAssemble -method() to redistribute the non-local
+     * values to their owning procs, such that fill_complete can be safely
+     * called on this matrix.
      */
     void fe_assemble(double val, int rgid, int cgid);
 
-
     /*!
       The GlobalAssembleMethod() distributes nonlocal values to their owning procs
       for Epetra_FECrsMatrices.
       Afterwards Fillcomplete is called such as for Epetra_CrsMatrices.
-
-      @param enforce_complete Enforce fill_complete() even though the matrix might already be filled
      */
-    void complete(bool enforce_complete = false) override;
+    void complete(OptionsMatrixComplete options_matrix_complete = {}) override;
 
     /*!
       The GlobalAssembleMethod() distributes nonlocal values to their owning procs
       for Epetra_FECrsMatrices.
       Afterwards Fillcomplete is called such as for Epetra_CrsMatrices.
-
-      @param enforce_complete Enforce fill_complete() even though the matrix might already be filled
      */
     void complete(const Core::LinAlg::Map& domainmap, const Core::LinAlg::Map& rangemap,
-        bool enforce_complete = false) override;
-
-    // The following three interfaces needs so be merged into one.
-    void complete(const Core::LinAlg::Map& domainmap, const Epetra_Map& rangemap,
-        bool enforce_complete = false);
-
-    void complete(const Epetra_Map& domainmap, const Core::LinAlg::Map& rangemap,
-        bool enforce_complete = false);
-
-    void complete(
-        const Epetra_Map& domainmap, const Epetra_Map& rangemap, bool enforce_complete = false);
+        OptionsMatrixComplete options_matrix_complete = {}) override;
 
     void un_complete() override;
 
@@ -463,6 +447,7 @@ namespace Core::LinAlg
     /// Returns the number of rows locally owned.
     int num_my_rows() const { return sysmat_->NumMyRows(); }
 
+    /// Returns the current number of nonzero entries in specified local row on this processor.
     int num_my_entries(int my_row) const { return sysmat_->NumMyEntries(my_row); }
 
     /// Returns the number of global rows.
@@ -471,11 +456,14 @@ namespace Core::LinAlg
     /// Returns the number of global rows.
     int num_global_cols() const { return sysmat_->NumGlobalCols(); }
 
-    // Returns the number of nonzero entries in a global row.
+    /// Returns the number of nonzero entries in a global row.
     int num_global_entries(int global_row) const { return sysmat_->NumGlobalEntries(global_row); }
 
     /// Returns the maximum number of nonzero entries across all rows on this processor.
     int max_num_entries() const;
+
+    /// Returns the maximum number of nonzero entries across all rows on all processors.
+    int global_max_num_entries() const;
 
     /// Returns the global number of nonzeros.
     int num_my_nonzeros() const { return sysmat_->NumMyNonzeros(); }
@@ -488,6 +476,10 @@ namespace Core::LinAlg
     {
       return sysmat_->NumAllocatedGlobalEntries(global_row);
     }
+
+    /// Returns the number of global nonzero diagonal entries, based on global row/column index
+    /// comparisons.
+    int num_global_diagonals() const { return sysmat_->NumGlobalDiagonals(); };
 
     /// Returns the global row index for give local row index, returns IndexBase-1 if we don't have
     /// this local row.
@@ -574,6 +566,10 @@ namespace Core::LinAlg
     int replace_my_values(
         int my_row, int num_entries, const double* values, const int* indices) const;
 
+    /// Replaces values in a global row.
+    int replace_global_values(
+        int global_row, int num_entries, const double* values, const int* indices) const;
+
     /// Inserts values into a global row.
     int insert_global_values(
         int global_row, int num_entries, const double* values, const int* indices) const;
@@ -639,6 +635,8 @@ namespace Core::LinAlg
     void add_other(Core::LinAlg::BlockSparseMatrixBase& B, const bool transposeA,
         const double scalarA, const double scalarB) const override;
 
+    //! Print to user-provided output stream
+    void print(std::ostream& os) const { sysmat_->Print(os); }
 
    protected:
     /// internal epetra matrix (Epetra_CrsMatrix or Epetra_FECrsMatrix)

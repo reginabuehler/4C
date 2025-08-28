@@ -12,9 +12,10 @@
 
 #include "4C_solver_nonlin_nox_enum_lists.hpp"
 #include "4C_solver_nonlin_nox_forward_decl.hpp"
+#include "4C_solver_nonlin_nox_linearproblem.hpp"
+#include "4C_solver_nonlin_nox_linearsystem_base.hpp"
 
 #include <NOX_Epetra_Interface_Required.H>
-#include <NOX_Epetra_LinearSystem.H>
 #include <Teuchos_Time.hpp>
 
 FOUR_C_NAMESPACE_OPEN
@@ -44,29 +45,13 @@ namespace NOX
     namespace LinSystem
     {
       class PrePostOperator;
-      class Scaling;
     }  // namespace LinSystem
-    class LinearSystem : public ::NOX::Epetra::LinearSystem
+    class Scaling;
+
+    class LinearSystem : public NOX::Nln::LinearSystemBase
     {
      public:
       using SolverMap = std::map<NOX::Nln::SolutionType, Teuchos::RCP<Core::LinAlg::Solver>>;
-
-     protected:
-      //! Source of the RowMatrix if using a native preconditioner
-      enum PreconditionerMatrixSourceType
-      {
-        UseJacobian,
-        SeparateMatrix
-      };
-
-      enum PreconditionerType
-      {
-        None,
-        Ifpack,
-        NewIfpack,
-        ML,
-        UserDefined
-      };
 
      public:
       //! Standard constructor with full functionality.
@@ -74,17 +59,15 @@ namespace NOX
           const SolverMap& solvers, const Teuchos::RCP<::NOX::Epetra::Interface::Required>& iReq,
           const Teuchos::RCP<::NOX::Epetra::Interface::Jacobian>& iJac,
           const Teuchos::RCP<Core::LinAlg::SparseOperator>& J,
-          const Teuchos::RCP<::NOX::Epetra::Interface::Preconditioner>& iPrec,
           const Teuchos::RCP<Core::LinAlg::SparseOperator>& preconditioner,
           const ::NOX::Epetra::Vector& cloneVector,
-          const Teuchos::RCP<::NOX::Epetra::Scaling> scalingObject);
+          const std::shared_ptr<NOX::Nln::Scaling> scalingObject);
 
       //! Constructor without scaling object
       LinearSystem(Teuchos::ParameterList& printParams, Teuchos::ParameterList& linearSolverParams,
           const SolverMap& solvers, const Teuchos::RCP<::NOX::Epetra::Interface::Required>& iReq,
           const Teuchos::RCP<::NOX::Epetra::Interface::Jacobian>& iJac,
           const Teuchos::RCP<Core::LinAlg::SparseOperator>& J,
-          const Teuchos::RCP<::NOX::Epetra::Interface::Preconditioner>& iPrec,
           const Teuchos::RCP<Core::LinAlg::SparseOperator>& preconditioner,
           const ::NOX::Epetra::Vector& cloneVector);
 
@@ -94,7 +77,7 @@ namespace NOX
           const Teuchos::RCP<::NOX::Epetra::Interface::Jacobian>& iJac,
           const Teuchos::RCP<Core::LinAlg::SparseOperator>& J,
           const ::NOX::Epetra::Vector& cloneVector,
-          const Teuchos::RCP<::NOX::Epetra::Scaling> scalingObject);
+          const std::shared_ptr<NOX::Nln::Scaling> scalingObject);
 
       //! Constructor without preconditioner and scaling object
       LinearSystem(Teuchos::ParameterList& printParams, Teuchos::ParameterList& linearSolverParams,
@@ -132,12 +115,6 @@ namespace NOX
       bool applyJacobianInverse(Teuchos::ParameterList& linearSolverParams,
           const ::NOX::Epetra::Vector& input, ::NOX::Epetra::Vector& result) override;
 
-      bool applyRightPreconditioning(bool useTranspose, Teuchos::ParameterList& linearSolverParams,
-          const ::NOX::Epetra::Vector& input, ::NOX::Epetra::Vector& result) const override;
-
-      bool createPreconditioner(const ::NOX::Epetra::Vector& x,
-          Teuchos::ParameterList& linearSolverParams, bool recomputeGraph) const override;
-
       //! adjust the pseudo time step (using a least squares approximation)
       void adjust_pseudo_time_step(double& delta, const double& stepSize,
           const ::NOX::Epetra::Vector& dir, const ::NOX::Epetra::Vector& rhs,
@@ -148,10 +125,6 @@ namespace NOX
 
       //! ::NOX::Epetra::Interface::Jacobian accessor
       Teuchos::RCP<const ::NOX::Epetra::Interface::Jacobian> get_jacobian_interface() const;
-
-      //! ::NOX::Epetra::Interface::Preconditioner accessor
-      Teuchos::RCP<const ::NOX::Epetra::Interface::Preconditioner> get_preconditioner_interface()
-          const;
 
       /** \brief return the Jacobian range map
        *
@@ -185,36 +158,9 @@ namespace NOX
       //! Returns the operator type of the jacobian
       const enum NOX::Nln::LinSystem::OperatorType& get_jacobian_operator_type() const;
 
-      //! Set the jacobian operator
-      //! Derived function: Check if the input operator is a LINALG_SparseOperator
-      void setJacobianOperatorForSolve(
-          const Teuchos::RCP<const Epetra_Operator>& solveJacOp) override;
-
       //! Set the jacobian operator of this class
       void set_jacobian_operator_for_solve(
           const Teuchos::RCP<const Core::LinAlg::SparseOperator>& solveJacOp);
-
-      Teuchos::RCP<::NOX::Epetra::Scaling> getScaling() override;
-
-      void resetScaling(const Teuchos::RCP<::NOX::Epetra::Scaling>& scalingObject) override;
-
-      bool destroyPreconditioner() const override;
-
-      bool recomputePreconditioner(const ::NOX::Epetra::Vector& x,
-          Teuchos::ParameterList& linearSolverParams) const override;
-
-      ::NOX::Epetra::LinearSystem::PreconditionerReusePolicyType getPreconditionerPolicy(
-          bool advanceReuseCounter) override;
-
-      bool isPreconditionerConstructed() const override;
-
-      bool hasPreconditioner() const override;
-
-      Teuchos::RCP<const Epetra_Operator> getGeneratedPrecOperator() const override;
-
-      Teuchos::RCP<Epetra_Operator> getGeneratedPrecOperator() override;
-
-      void setPrecOperatorForSolve(const Teuchos::RCP<const Epetra_Operator>& solvePrecOp) override;
 
       //! destroy the jacobian ptr
       bool destroy_jacobian();
@@ -270,9 +216,8 @@ namespace NOX
           Teuchos::RCP<Core::LinAlg::Solver>& currSolver) = 0;
 
       //! Set-up the linear problem object
-      virtual void set_linear_problem_for_solve(Epetra_LinearProblem& linear_problem,
-          Core::LinAlg::SparseOperator& jac, Core::LinAlg::Vector<double>& lhs,
-          Core::LinAlg::Vector<double>& rhs) const;
+      virtual LinearProblem set_linear_problem_for_solve(Core::LinAlg::SparseOperator& jac,
+          Core::LinAlg::Vector<double>& lhs, Core::LinAlg::Vector<double>& rhs) const;
 
       /*! \brief Complete the solution vector after a linear solver attempt
        *
@@ -284,7 +229,7 @@ namespace NOX
        *
        *  */
       virtual void complete_solution_after_solve(
-          const Epetra_LinearProblem& linProblem, Core::LinAlg::Vector<double>& lhs) const;
+          const NOX::Nln::LinearProblem& linProblem, Core::LinAlg::Vector<double>& lhs) const;
 
       /// convert jacobian matrix to dense matrix
       void convert_jacobian_to_dense_matrix(Core::LinAlg::SerialDenseMatrix& dense) const;
@@ -336,27 +281,13 @@ namespace NOX
       //! Type of operator for the Jacobian.
       NOX::Nln::LinSystem::OperatorType jacType_;
 
-      //! Reference to the user supplied preconditioner interface functions
-      Teuchos::RCP<::NOX::Epetra::Interface::Preconditioner> precInterfacePtr_;
-
-      //! Type of operator for the preconditioner.
-      NOX::Nln::LinSystem::OperatorType precType_;
-
-      //! Pointer to the preconditioner operator.
-      Teuchos::RCP<Epetra_Operator> precPtr_;
-
-      PreconditionerMatrixSourceType precMatrixSource_;
-
       //! Scaling object supplied by the user
-      Teuchos::RCP<::NOX::Epetra::Scaling> scaling_;
+      std::shared_ptr<NOX::Nln::Scaling> scaling_;
 
       double conditionNumberEstimate_;
 
       //! Teuchos::Time object
       Teuchos::Time timer_;
-
-      //! Total time spent in createPreconditioner (sec.).
-      double timeCreatePreconditioner_;
 
       //! Total time spent in applyJacobianInverse (sec.).
       double timeApplyJacbianInverse_;

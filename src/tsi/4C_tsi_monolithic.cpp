@@ -281,14 +281,16 @@ void TSI::Monolithic::create_linear_solver()
       solver_->put_solver_params_to_sub_params("Inverse1", tsisolverparams,
           Global::Problem::instance()->solver_params_callback(),
           Teuchos::getIntegralValue<Core::IO::Verbositylevel>(
-              Global::Problem::instance()->io_params(), "VERBOSITY"));
+              Global::Problem::instance()->io_params(), "VERBOSITY"),
+          get_comm());
       structure_field()->discretization()->compute_null_space_if_necessary(
           solver_->params().sublist("Inverse1"));
 
       solver_->put_solver_params_to_sub_params("Inverse2", tsisolverparams,
           Global::Problem::instance()->solver_params_callback(),
           Teuchos::getIntegralValue<Core::IO::Verbositylevel>(
-              Global::Problem::instance()->io_params(), "VERBOSITY"));
+              Global::Problem::instance()->io_params(), "VERBOSITY"),
+          get_comm());
       thermo_field()->discretization()->compute_null_space_if_necessary(
           solver_->params().sublist("Inverse2"));
 
@@ -1115,7 +1117,7 @@ void TSI::Monolithic::linear_solve()
     // solve the problem, work is done here!
     solver_params.refactor = true;
     solver_params.reset = iter_ == 1;
-    solver_->solve(systemmatrix_->epetra_operator(), iterinc_, rhs_, solver_params);
+    solver_->solve(systemmatrix_, iterinc_, rhs_, solver_params);
 
     // Infnormscaling: unscale system after solving
     unscale_solution(*systemmatrix_, *iterinc_, *rhs_);
@@ -1131,7 +1133,7 @@ void TSI::Monolithic::linear_solve()
     Core::LinAlg::SolverParams solver_params;
     solver_params.refactor = true;
     solver_params.reset = iter_ == 1;
-    solver_->solve(sparse->epetra_operator(), iterinc_, rhs_, solver_params);
+    solver_->solve(sparse, iterinc_, rhs_, solver_params);
   }  // MergeBlockMatrix
 
   // apply mortar coupling

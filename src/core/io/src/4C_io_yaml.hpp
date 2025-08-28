@@ -20,6 +20,7 @@
 #include <format>
 #include <fstream>
 #include <optional>
+#include <tuple>
 
 FOUR_C_NAMESPACE_OPEN
 
@@ -149,6 +150,12 @@ namespace Core::IO
   template <typename T>
   void emit_value_as_yaml(YamlNodeRef node, const std::vector<T>& value);
 
+  template <typename... Ts>
+  void emit_value_as_yaml(YamlNodeRef node, const std::tuple<Ts...>& value);
+
+  template <typename T1, typename T2>
+  void emit_value_as_yaml(YamlNodeRef node, const std::pair<T1, T2>& value);
+
   template <YamlSupportedType T>
     requires(!std::is_enum_v<T>)
   void read_value_from_yaml(ConstYamlNodeRef node, T& value)
@@ -201,6 +208,19 @@ namespace Core::IO
     }
   }
 
+  template <typename... Ts>
+  void read_value_from_yaml(ConstYamlNodeRef node, std::tuple<Ts...>& value)
+  {
+    FOUR_C_ASSERT_ALWAYS(node.node.is_seq(), "Expected a sequence node for a tuple.");
+    FOUR_C_ASSERT_ALWAYS(node.node.num_children() == sizeof...(Ts),
+        "Expected exactly {} children in the sequence node for a tuple, but got {}.", sizeof...(Ts),
+        node.node.num_children());
+
+    std::size_t index = 0;
+    (read_value_from_yaml(node.wrap(node.node[index++]), std::get<Ts>(value)), ...);
+  }
+
+
   template <typename T1, typename T2>
   void read_value_from_yaml(ConstYamlNodeRef node, std::pair<T1, T2>& value)
   {
@@ -231,6 +251,7 @@ namespace Core::IO
   {
     FOUR_C_ASSERT_ALWAYS(node.node.is_map(), "Expected a map node for a map.");
     value.clear();
+    value.reserve(node.node.num_children());
     for (auto child : node.node.children())
     {
       FOUR_C_ASSERT_ALWAYS(child.has_key(), "Expected a key in the map node.");
@@ -252,6 +273,7 @@ namespace Core::IO
   {
     FOUR_C_ASSERT_ALWAYS(node.node.is_seq(), "Expected a sequence node for a vector.");
     value.clear();
+    value.reserve(node.node.num_children());
     for (auto child : node.node.children())
     {
       T v;
@@ -349,6 +371,27 @@ void Core::IO::emit_value_as_yaml(YamlNodeRef node, const std::vector<T>& value)
     auto child = node.wrap(node.node.append_child());
     emit_value_as_yaml(child, v);
   }
+}
+
+template <typename... Ts>
+void Core::IO::emit_value_as_yaml(YamlNodeRef node, const std::tuple<Ts...>& value)
+{
+  node.node |= ryml::SEQ;
+
+  std::apply([&](const auto&... val)
+      { (emit_value_as_yaml(node.wrap(node.node.append_child()), val), ...); }, value);
+}
+
+template <typename T1, typename T2>
+void Core::IO::emit_value_as_yaml(YamlNodeRef node, const std::pair<T1, T2>& value)
+{
+  node.node |= ryml::SEQ;
+
+  auto first_child = node.wrap(node.node.append_child());
+  emit_value_as_yaml(first_child, value.first);
+
+  auto second_child = node.wrap(node.node.append_child());
+  emit_value_as_yaml(second_child, value.second);
 }
 
 FOUR_C_NAMESPACE_CLOSE

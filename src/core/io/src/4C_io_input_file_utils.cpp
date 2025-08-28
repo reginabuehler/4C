@@ -106,11 +106,15 @@ void Core::IO::read_parameters_in_section(
   InputParameterContainer container;
   input.match_section(section_name, container);
 
-  // If there is no group with the given name, we don't need to do anything. The InputFile
-  // made sure this is legal and the group is not required and empty.
-  if (!container.has_group(section_name)) return;
-
-  container.group(section_name).to_teuchos_parameter_list(find_sublist(section_name, list));
+  if (container.has_group(section_name))
+  {
+    // This special case should go away when sections with "/" are no longer present
+    container.group(section_name).to_teuchos_parameter_list(find_sublist(section_name, list));
+  }
+  else
+  {
+    container.to_teuchos_parameter_list(list);
+  }
 }
 
 /*----------------------------------------------------------------------*/
@@ -224,34 +228,35 @@ void Core::IO::read_design(InputFile& input, const std::string& name,
       const Core::FE::Discretization& actdis = get_discretization(disname);
 
       std::vector<double> box_specifications;
+      box_specifications.reserve(9);  // 3 coords, 3 coords, 3 rotations
       {
-        for (int init = 0; init < 9; ++init) box_specifications.push_back(0.0);
         if (Core::Communication::my_mpi_rank(input.get_comm()) == 0)  // Reading is done by proc 0
         {
           // get original domain section from the input file
-          std::string dommarker = disname + " DOMAIN";
-          std::transform(dommarker.begin(), dommarker.end(), dommarker.begin(), ::toupper);
+          std::string domain_section_name = disname + " DOMAIN";
+          std::ranges::transform(domain_section_name, domain_section_name.begin(), ::toupper);
 
-          for (const auto& line : input.in_section_rank_0_only(dommarker))
+          InputParameterContainer container;
+          input.match_section(domain_section_name, container);
+          const auto& domain_data = container.group(domain_section_name);
+
+          const auto append_to_box_specifications = [&box_specifications](
+                                                        const std::vector<double>& values)
           {
-            std::istringstream t{std::string{line.get_as_dat_style_string()}};
-            std::string key;
-            t >> key;
+            FOUR_C_ASSERT_ALWAYS(
+                values.size() == 3, "Internal error: exactly three values expected.");
+            box_specifications.insert(box_specifications.end(), values.begin(), values.end());
+          };
 
-            if (key == "LOWER_BOUND")
-            {
-              t >> box_specifications[0] >> box_specifications[1] >> box_specifications[2];
-            }
-            else if (key == "UPPER_BOUND")
-            {
-              t >> box_specifications[3] >> box_specifications[4] >> box_specifications[5];
-            }
-            else if (key == "ROTATION")
-            {
-              t >> box_specifications[6] >> box_specifications[7] >> box_specifications[8];
-            }
-          }
+          append_to_box_specifications(domain_data.get<std::vector<double>>("bottom_corner_point"));
+          append_to_box_specifications(domain_data.get<std::vector<double>>("top_corner_point"));
+          append_to_box_specifications(domain_data.get<std::vector<double>>("rotation_angle"));
         }
+        else  // All other processors get an empty vector
+        {
+          box_specifications.resize(9, 0.0);
+        }
+
         // All other processors get this info broadcasted
         Core::Communication::broadcast(box_specifications.data(),
             static_cast<int>(box_specifications.size()), 0, input.get_comm());
@@ -354,8 +359,8 @@ void Core::IO::read_design(InputFile& input, const std::string& name,
 }
 
 
-void Core::IO::read_knots(InputFile& input, const std::string& name,
-    std::shared_ptr<Core::FE::Nurbs::Knotvector>& disknots)
+std::unique_ptr<Core::FE::Nurbs::Knotvector> Core::IO::read_knots(
+    InputFile& input, const std::string& name)
 {
   const int myrank = Core::Communication::my_mpi_rank(input.get_comm());
   Teuchos::Time time("", true);
@@ -406,9 +411,9 @@ void Core::IO::read_knots(InputFile& input, const std::string& name,
     printf("                        %8d patches", npatches);
     fflush(stdout);
 
-    disknots = std::make_shared<Core::FE::Nurbs::Knotvector>(nurbs_dim, npatches);
+    auto disknots = std::make_unique<Core::FE::Nurbs::Knotvector>(nurbs_dim, npatches);
 
-    std::vector<std::shared_ptr<std::vector<double>>> patch_knots(nurbs_dim);
+    std::vector<std::vector<double>> patch_knots(nurbs_dim);
     std::vector<int> n_x_m_x_l(nurbs_dim), degree(nurbs_dim), count_vals(nurbs_dim);
     std::vector<std::string> knotvectortype(nurbs_dim);
 
@@ -426,7 +431,7 @@ void Core::IO::read_knots(InputFile& input, const std::string& name,
       {
         read = true;
         actdim = -1;
-        for (auto& knots : patch_knots) knots = std::make_shared<std::vector<double>>();
+        for (auto& knots : patch_knots) knots.clear();
         std::fill(count_vals.begin(), count_vals.end(), 0);
       }
       else if (tmp == "ID")
@@ -466,7 +471,7 @@ void Core::IO::read_knots(InputFile& input, const std::string& name,
       }
       else if (read)
       {
-        patch_knots[actdim]->push_back(std::stod(tmp));
+        patch_knots[actdim].push_back(std::stod(tmp));
         count_vals[actdim]++;
       }
     }
@@ -483,13 +488,16 @@ void Core::IO::read_knots(InputFile& input, const std::string& name,
     Core::IO::cout << " in...." << time.totalElapsedTime(true) << " secs\n";
     time.reset();
     fflush(stdout);
+
+    return disknots;
   }
   else
   {
     std::cout << "Rank " << myrank << " waiting for knot vectors from rank 0" << std::endl;
     // All other ranks receive the knot vectors from rank 0.
-    disknots = std::make_shared<Core::FE::Nurbs::Knotvector>();
+    auto disknots = std::make_unique<Core::FE::Nurbs::Knotvector>();
     Core::Communication::broadcast(*disknots, 0, input.get_comm());
+    return disknots;
   }
 }
 

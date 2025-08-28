@@ -17,6 +17,7 @@
 #include <Epetra_Operator.h>
 #include <Epetra_RowMatrix.h>
 #include <Epetra_VbrMatrix.h>
+#include <NOX_Epetra_Scaling.H>
 #include <Teuchos_ParameterList.hpp>
 
 #include <vector>
@@ -103,7 +104,7 @@ bool NOX::FSI::LinearSystemGCR::applyJacobianInverse(
       jacPtr.get(), &(result.getEpetraVector()), &(nonConstInput.getEpetraVector()));
 
   // ************* Begin linear system scaling *******************
-  if (!!(scaling))
+  if (scaling)
   {
     if (!manualScaling) scaling->computeScaling(Problem);
 
@@ -136,7 +137,7 @@ bool NOX::FSI::LinearSystemGCR::applyJacobianInverse(
   }
 
   // Unscale the linear system
-  if (!!(scaling)) scaling->unscaleLinearSystem(Problem);
+  if (scaling) scaling->unscaleLinearSystem(Problem);
 
   // Set the output parameters in the "Output" sublist
   if (outputSolveDetails)
@@ -385,60 +386,11 @@ void NOX::FSI::LinearSystemGCR::apply_plane_rotation(double& dx, double& dy, dou
 }
 
 
-bool NOX::FSI::LinearSystemGCR::applyRightPreconditioning(bool useTranspose,
-    Teuchos::ParameterList& params, const ::NOX::Epetra::Vector& input,
-    ::NOX::Epetra::Vector& result) const
-{
-  if (&result != &input) result = input;
-  return true;
-}
-
-
-Teuchos::RCP<::NOX::Epetra::Scaling> NOX::FSI::LinearSystemGCR::getScaling() { return scaling; }
-
-
-void NOX::FSI::LinearSystemGCR::resetScaling(
-    const Teuchos::RCP<::NOX::Epetra::Scaling>& scalingObject)
-{
-  scaling = scalingObject;
-}
-
-
 bool NOX::FSI::LinearSystemGCR::computeJacobian(const ::NOX::Epetra::Vector& x)
 {
   bool success = jacInterfacePtr->computeJacobian(x.getEpetraVector(), *jacPtr);
   return success;
 }
-
-
-bool NOX::FSI::LinearSystemGCR::createPreconditioner(
-    const ::NOX::Epetra::Vector& x, Teuchos::ParameterList& p, bool recomputeGraph) const
-{
-  return false;
-}
-
-
-bool NOX::FSI::LinearSystemGCR::destroyPreconditioner() const { return false; }
-
-
-bool NOX::FSI::LinearSystemGCR::recomputePreconditioner(
-    const ::NOX::Epetra::Vector& x, Teuchos::ParameterList& linearSolverParams) const
-{
-  return false;
-}
-
-
-NOX::FSI::LinearSystemGCR::PreconditionerReusePolicyType
-NOX::FSI::LinearSystemGCR::getPreconditionerPolicy(bool advanceReuseCounter)
-{
-  return PRPT_REBUILD;
-}
-
-
-bool NOX::FSI::LinearSystemGCR::isPreconditionerConstructed() const { return false; }
-
-
-bool NOX::FSI::LinearSystemGCR::hasPreconditioner() const { return false; }
 
 
 Teuchos::RCP<const Epetra_Operator> NOX::FSI::LinearSystemGCR::getJacobianOperator() const
@@ -450,33 +402,6 @@ Teuchos::RCP<const Epetra_Operator> NOX::FSI::LinearSystemGCR::getJacobianOperat
 Teuchos::RCP<Epetra_Operator> NOX::FSI::LinearSystemGCR::getJacobianOperator()
 {
   return Teuchos::rcpFromRef(*jacPtr);
-}
-
-
-Teuchos::RCP<const Epetra_Operator> NOX::FSI::LinearSystemGCR::getGeneratedPrecOperator() const
-{
-  return Teuchos::null;
-}
-
-
-Teuchos::RCP<Epetra_Operator> NOX::FSI::LinearSystemGCR::getGeneratedPrecOperator()
-{
-  return Teuchos::null;
-}
-
-
-void NOX::FSI::LinearSystemGCR::setJacobianOperatorForSolve(
-    const Teuchos::RCP<const Epetra_Operator>& solveJacOp)
-{
-  jacPtr = Teuchos::rcp_const_cast<Epetra_Operator>(solveJacOp);
-  jacType = get_operator_type(*solveJacOp);
-}
-
-
-void NOX::FSI::LinearSystemGCR::setPrecOperatorForSolve(
-    const Teuchos::RCP<const Epetra_Operator>& solvePrecOp)
-{
-  throw_error("setPrecOperatorForSolve", "no preconditioner supported");
 }
 
 

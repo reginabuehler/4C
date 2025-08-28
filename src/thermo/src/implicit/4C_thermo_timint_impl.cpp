@@ -74,8 +74,7 @@ Thermo::TimIntImpl::TimIntImpl(const Teuchos::ParameterList& ioparams,
   auto material = std::dynamic_pointer_cast<Mat::Fourier>(discret_->l_row_element(0)->material());
   const size_t columns = material->conductivity(discret_->l_row_element(0)->id()).size();
   Core::LinAlg::FEVector<double> overlapping_element_material_vector =
-      Core::LinAlg::FEVector<double>(
-          discret_->element_col_map()->get_epetra_block_map(), columns, true);
+      Core::LinAlg::FEVector<double>(*discret_->element_col_map(), columns, true);
 
   auto get_element_material_vector = [&](Core::Elements::Element& ele)
   {
@@ -296,7 +295,7 @@ void Thermo::TimIntImpl::predict_tang_temp_consist_rate()
   Core::LinAlg::SolverParams solver_params;
   solver_params.refactor = true;
   solver_params.reset = true;
-  solver_->solve(tang_->epetra_operator(), tempi_, fres_, solver_params);
+  solver_->solve(tang_, tempi_, fres_, solver_params);
   solver_->reset();
 
   // build residual temperature norm
@@ -468,7 +467,7 @@ Thermo::ConvergenceStatus Thermo::TimIntImpl::newton_full()
     }
     solver_params.refactor = true;
     solver_params.reset = iter_ == 1;
-    solver_->solve(tang_->epetra_operator(), tempi_, fres_, solver_params);
+    solver_->solve(tang_, tempi_, fres_, solver_params);
     solver_->reset_tolerance();
 
     // recover condensed variables

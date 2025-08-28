@@ -22,7 +22,6 @@
 #include <BelosLinearProblem.hpp>
 #include <BelosPseudoBlockCGSolMgr.hpp>
 #include <BelosPseudoBlockGmresSolMgr.hpp>
-#include <Epetra_CrsMatrix.h>
 #include <Teuchos_RCPStdSharedPtrConversions.hpp>
 #include <Teuchos_TimeMonitor.hpp>
 #include <Teuchos_XMLParameterListHelpers.hpp>
@@ -30,25 +29,27 @@
 FOUR_C_NAMESPACE_OPEN
 
 using BelosVectorType = Epetra_MultiVector;
+using BelosMatrixType = Epetra_Operator;
 
 //----------------------------------------------------------------------------------
 //----------------------------------------------------------------------------------
-template <class MatrixType, class VectorType>
-Core::LinearSolver::IterativeSolver<MatrixType, VectorType>::IterativeSolver(
-    MPI_Comm comm, Teuchos::ParameterList& params)
+Core::LinearSolver::IterativeSolver::IterativeSolver(MPI_Comm comm, Teuchos::ParameterList& params)
     : comm_(comm), params_(params)
 {
 }
 
 //----------------------------------------------------------------------------------
 //----------------------------------------------------------------------------------
-template <class MatrixType, class VectorType>
-void Core::LinearSolver::IterativeSolver<MatrixType, VectorType>::setup(
-    std::shared_ptr<MatrixType> A, std::shared_ptr<VectorType> x, std::shared_ptr<VectorType> b,
-    const bool refactor, const bool reset, std::shared_ptr<Core::LinAlg::KrylovProjector> projector)
+void Core::LinearSolver::IterativeSolver::setup(std::shared_ptr<Core::LinAlg::SparseOperator> A,
+    std::shared_ptr<Core::LinAlg::MultiVector<double>> x,
+    std::shared_ptr<Core::LinAlg::MultiVector<double>> b, const bool refactor, const bool reset,
+    std::shared_ptr<Core::LinAlg::KrylovProjector> projector)
 {
   if (!params().isSublist("Belos Parameters")) FOUR_C_THROW("Do not have belos parameter list");
   Teuchos::ParameterList& belist = params().sublist("Belos Parameters");
+
+  if (Core::Communication::my_mpi_rank(comm_) == 0)
+    std::cout << "*******************************************************" << std::endl;
 
   const int reuse = belist.get("reuse", 0);
   const bool create = !allow_reuse_preconditioner(reuse, reset);
@@ -62,18 +63,34 @@ void Core::LinearSolver::IterativeSolver<MatrixType, VectorType>::setup(
   x_ = x;
   b_ = b;
 
-  if (create) preconditioner_->setup(a_.get(), x_.get(), b_.get());
+  if (create)
+  {
+    if (Core::Communication::my_mpi_rank(comm_) == 0)
+    {
+      std::cout << "Compute preconditioner " << std::endl;
+      std::cout << "*******************************************************" << std::endl;
+    }
+
+    preconditioner_->setup(a_->epetra_operator().get(), x_.get(), b_.get());
+  }
+  else
+  {
+    if (Core::Communication::my_mpi_rank(comm_) == 0)
+    {
+      std::cout << "Reuse preconditioner (reused for " << ncall() << " steps)" << std::endl;
+      std::cout << "*******************************************************" << std::endl;
+    }
+  }
 }
 
 //----------------------------------------------------------------------------------
 //----------------------------------------------------------------------------------
-template <class MatrixType, class VectorType>
-int Core::LinearSolver::IterativeSolver<MatrixType, VectorType>::solve()
+int Core::LinearSolver::IterativeSolver::solve()
 {
   Teuchos::ParameterList& belist = params().sublist("Belos Parameters");
 
-  auto problem = Teuchos::make_rcp<Belos::LinearProblem<double, BelosVectorType, MatrixType>>(
-      Teuchos::rcp(a_), Teuchos::rcpFromRef(x_->get_epetra_multi_vector()),
+  auto problem = Teuchos::make_rcp<Belos::LinearProblem<double, BelosVectorType, BelosMatrixType>>(
+      Teuchos::rcp(a_->epetra_operator()), Teuchos::rcpFromRef(x_->get_epetra_multi_vector()),
       Teuchos::rcpFromRef(b_->get_epetra_multi_vector()));
 
   if (preconditioner_ != nullptr)
@@ -87,7 +104,7 @@ int Core::LinearSolver::IterativeSolver<MatrixType, VectorType>::solve()
   if (set == false)
     FOUR_C_THROW("Core::LinearSolver::BelosSolver: Iterative solver failed to set up correctly.");
 
-  std::shared_ptr<Belos::SolverManager<double, BelosVectorType, MatrixType>> newSolver;
+  std::shared_ptr<Belos::SolverManager<double, BelosVectorType, BelosMatrixType>> newSolver;
 
   if (belist.isParameter("SOLVER_XML_FILE"))
   {
@@ -106,7 +123,7 @@ int Core::LinearSolver::IterativeSolver<MatrixType, VectorType>::solve()
       }
 
       newSolver =
-          std::make_shared<Belos::PseudoBlockGmresSolMgr<double, BelosVectorType, MatrixType>>(
+          std::make_shared<Belos::PseudoBlockGmresSolMgr<double, BelosVectorType, BelosMatrixType>>(
               problem, belosSolverList);
     }
     else if (belosParams.isSublist("CG"))
@@ -117,8 +134,9 @@ int Core::LinearSolver::IterativeSolver<MatrixType, VectorType>::solve()
         belosSolverList->set("Convergence Tolerance", belist.get<double>("Convergence Tolerance"));
       }
 
-      newSolver = std::make_shared<Belos::PseudoBlockCGSolMgr<double, BelosVectorType, MatrixType>>(
-          problem, belosSolverList);
+      newSolver =
+          std::make_shared<Belos::PseudoBlockCGSolMgr<double, BelosVectorType, BelosMatrixType>>(
+              problem, belosSolverList);
     }
     else if (belosParams.isSublist("BiCGSTAB"))
     {
@@ -128,7 +146,7 @@ int Core::LinearSolver::IterativeSolver<MatrixType, VectorType>::solve()
         belosSolverList->set("Convergence Tolerance", belist.get<double>("Convergence Tolerance"));
       }
 
-      newSolver = std::make_shared<Belos::BiCGStabSolMgr<double, BelosVectorType, MatrixType>>(
+      newSolver = std::make_shared<Belos::BiCGStabSolMgr<double, BelosVectorType, BelosMatrixType>>(
           problem, belosSolverList);
     }
     else
@@ -143,13 +161,14 @@ int Core::LinearSolver::IterativeSolver<MatrixType, VectorType>::solve()
 
     std::string solverType = belist.get<std::string>("Solver Type");
     if (solverType == "GMRES")
-      newSolver = std::make_shared<Belos::BlockGmresSolMgr<double, BelosVectorType, MatrixType>>(
-          problem, Teuchos::rcpFromRef(belist));
+      newSolver =
+          std::make_shared<Belos::BlockGmresSolMgr<double, BelosVectorType, BelosMatrixType>>(
+              problem, Teuchos::rcpFromRef(belist));
     else if (solverType == "CG")
-      newSolver = std::make_shared<Belos::BlockCGSolMgr<double, BelosVectorType, MatrixType>>(
+      newSolver = std::make_shared<Belos::BlockCGSolMgr<double, BelosVectorType, BelosMatrixType>>(
           problem, Teuchos::rcpFromRef(belist));
     else if (solverType == "BiCGSTAB")
-      newSolver = std::make_shared<Belos::BiCGStabSolMgr<double, BelosVectorType, MatrixType>>(
+      newSolver = std::make_shared<Belos::BiCGStabSolMgr<double, BelosVectorType, BelosMatrixType>>(
           problem, Teuchos::rcpFromRef(belist));
     else
       FOUR_C_THROW("Core::LinearSolver::BelosSolver: Unknown iterative solver solver type chosen.");
@@ -190,17 +209,41 @@ int Core::LinearSolver::IterativeSolver<MatrixType, VectorType>::solve()
 
 //----------------------------------------------------------------------------------
 //----------------------------------------------------------------------------------
-template <class MatrixType, class VectorType>
-bool Core::LinearSolver::IterativeSolver<MatrixType, VectorType>::allow_reuse_preconditioner(
+bool Core::LinearSolver::IterativeSolver::allow_reuse_preconditioner(
     const int reuse, const bool reset)
 {
   // first, check some parameters with information that has to be updated
   Teuchos::ParameterList& linSysParams = params().sublist("Belos Parameters");
 
   bool bAllowReuse = linSysParams.get<bool>("reuse preconditioner", true);
+  int max_stall_iter = linSysParams.get<int>("max linear iterations for stall");
 
-  const bool create = reset or not ncall() or not reuse or (ncall() % reuse) == 0;
-  if (create) bAllowReuse = false;
+  // 1. check if we are allowed to reuse the preconditioner over several nonlinear solves
+  if (not ncall() or not reuse or ncall() % reuse == 0)
+  {
+    if (Core::Communication::my_mpi_rank(comm_) == 0)
+      std::cout << "Recomputation due to reaching " << ncall() << " nonlinear steps." << std::endl;
+
+    bAllowReuse = false;
+  }
+
+  // 2. check if the number of iterations exceeds the given one for stalling of the solver
+  if (bAllowReuse and get_num_iters() > max_stall_iter)
+  {
+    if (Core::Communication::my_mpi_rank(comm_) == 0)
+      std::cout << "Recomputation due to linear solver stalling." << std::endl;
+
+    bAllowReuse = false;
+  }
+
+  // 3. check if there's an external reset
+  if (reset)
+  {
+    if (Core::Communication::my_mpi_rank(comm_) == 0)
+      std::cout << "Recomputation due to reset." << std::endl;
+
+    bAllowReuse = false;
+  }
 
   // here, each processor has its own local decision made
   // bAllowReuse = true -> preconditioner can be reused
@@ -221,9 +264,8 @@ bool Core::LinearSolver::IterativeSolver<MatrixType, VectorType>::allow_reuse_pr
 
 //----------------------------------------------------------------------------------
 //----------------------------------------------------------------------------------
-template <class MatrixType, class VectorType>
 std::shared_ptr<Core::LinearSolver::PreconditionerTypeBase>
-Core::LinearSolver::IterativeSolver<MatrixType, VectorType>::create_preconditioner(
+Core::LinearSolver::IterativeSolver::create_preconditioner(
     Teuchos::ParameterList& solverlist, std::shared_ptr<Core::LinAlg::KrylovProjector> projector)
 {
   TEUCHOS_FUNC_TIME_MONITOR("Core::LinAlg::Solver:  1.1)   create_preconditioner");
@@ -258,11 +300,5 @@ Core::LinearSolver::IterativeSolver<MatrixType, VectorType>::create_precondition
 
   return preconditioner;
 }
-
-//----------------------------------------------------------------------------------
-//----------------------------------------------------------------------------------
-// explicit initialization
-template class Core::LinearSolver::IterativeSolver<Epetra_Operator,
-    Core::LinAlg::MultiVector<double>>;
 
 FOUR_C_NAMESPACE_CLOSE

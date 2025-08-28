@@ -162,7 +162,7 @@ void Constraints::ConstraintSolver::solve_uzawa(Core::LinAlg::SparseMatrix& stif
 
     solver_params.refactor = true;
     solver_params.reset = numiter_uzawa == 0 && counter_ == 0;
-    solver_->solve(stiff.epetra_operator(), dispinc, fresmcopy, solver_params);
+    solver_->solve(Core::Utils::shared_ptr_from_ref(stiff), dispinc, fresmcopy, solver_params);
     solver_->reset_tolerance();
 
     // compute Lagrange multiplier increment
@@ -287,7 +287,7 @@ void Constraints::ConstraintSolver::solve_direct(Core::LinAlg::SparseMatrix& sti
   Core::LinAlg::SolverParams solver_params;
   solver_params.refactor = true;
   solver_params.reset = counter_ == 0;
-  solver_->solve(mergedmatrix->epetra_operator(), mergedsol, mergedrhs, solver_params);
+  solver_->solve(mergedmatrix, mergedsol, mergedrhs, solver_params);
   solver_->reset_tolerance();
   // store results in smaller vectors
   mapext.extract_cond_vector(*mergedsol, dispinc);
@@ -345,7 +345,8 @@ void Constraints::ConstraintSolver::solve_simple(Core::LinAlg::SparseMatrix& sti
   solver_->params() = Core::LinAlg::Solver::translate_solver_parameters(solverparams,
       Global::Problem::instance()->solver_params_callback(),
       Teuchos::getIntegralValue<Core::IO::Verbositylevel>(
-          Global::Problem::instance()->io_params(), "VERBOSITY"));
+          Global::Problem::instance()->io_params(), "VERBOSITY"),
+      actdisc_->get_comm());
 
   const auto prectype =
       Teuchos::getIntegralValue<Core::LinearSolver::PreconditionerType>(solverparams, "AZPREC");
@@ -386,7 +387,7 @@ void Constraints::ConstraintSolver::solve_simple(Core::LinAlg::SparseMatrix& sti
   Core::LinAlg::SolverParams solver_params;
   solver_params.refactor = true;
   solver_params.reset = counter_ == 0;
-  solver_->solve(mat->epetra_operator(), mergedsol, mergedrhs, solver_params);
+  solver_->solve(mat, mergedsol, mergedrhs, solver_params);
   solver_->reset_tolerance();
   solver_->params() = sfparams;  // store back original parameter list
 

@@ -210,7 +210,8 @@ void LowMach::Algorithm::setup()
     lomasolver_->put_solver_params_to_sub_params("Inverse1",
         Global::Problem::instance()->solver_params(fluidsolver),
         Global::Problem::instance()->solver_params_callback(),
-        Global::Problem::instance()->io_params().get<Core::IO::Verbositylevel>("VERBOSITY"));
+        Global::Problem::instance()->io_params().get<Core::IO::Verbositylevel>("VERBOSITY"),
+        get_comm());
 
 
     // get linear solver id from SCALAR TRANSPORT DYNAMIC
@@ -226,7 +227,8 @@ void LowMach::Algorithm::setup()
     lomasolver_->put_solver_params_to_sub_params("Inverse2",
         Global::Problem::instance()->solver_params(scalartransportsolvernumber),
         Global::Problem::instance()->solver_params_callback(),
-        Global::Problem::instance()->io_params().get<Core::IO::Verbositylevel>("VERBOSITY"));
+        Global::Problem::instance()->io_params().get<Core::IO::Verbositylevel>("VERBOSITY"),
+        get_comm());
 
     Core::LinearSolver::Parameters::compute_solver_parameters(
         *fluid_field()->discretization(), lomasolver_->params().sublist("Inverse1"));
@@ -793,7 +795,7 @@ void LowMach::Algorithm::mono_loma_system_solve()
   Core::LinAlg::SolverParams solver_params;
   solver_params.refactor = true;
   solver_params.reset = true;
-  lomasolver_->solve(lomasystemmatrix_->epetra_operator(), lomaincrement_, lomarhs_, solver_params);
+  lomasolver_->solve(lomasystemmatrix_, lomaincrement_, lomarhs_, solver_params);
 }
 
 

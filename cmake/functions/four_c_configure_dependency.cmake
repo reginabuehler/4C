@@ -175,6 +175,11 @@ function(four_c_check_dependency_version _package_name _package_name_sanitized _
 endfunction()
 
 # A function to search for and configure an external dependency.
+#
+# Usage: four_c_configure_dependency(<package_name> [REQUIRED] [DEFAULT <ON|OFF>])
+#
+# Note that setting the option 'REQUIRED' will imply `DEFAULT ON`.
+#
 # This function takes over most of the boilerplate to generate unified names for the dependencies. The only thing
 # it requires, is a file called 'configure_${_package_name}.cmake' in the 'cmake/configure' directory. This file
 # is responsible to do whatever is necessary to find and configure the package. The configure script can use the
@@ -186,7 +191,7 @@ endfunction()
 #
 # - FOUR_C_${_package_name}_GIT_HASH: The git hash of the package. (Optional, but may be used to check supported versions.)
 function(four_c_configure_dependency _package_name)
-  set(options "")
+  set(options REQUIRED)
   set(oneValueArgs DEFAULT)
   set(multiValueArgs "")
   cmake_parse_arguments(
@@ -201,13 +206,36 @@ function(four_c_configure_dependency _package_name)
     message(FATAL_ERROR "There are unparsed arguments: ${_parsed_UNPARSED_ARGUMENTS}")
   endif()
 
+  # Sanitize DEFAULT and REQUIRED options to be consistent
+  if(_parsed_REQUIRED)
+    if(NOT DEFINED _parsed_DEFAULT)
+      set(_parsed_DEFAULT "ON")
+    elseif(NOT _parsed_DEFAULT)
+      message(
+        FATAL_ERROR
+          "You cannot set the option 'DEFAULT OFF' for 'REQUIRED' dependency '${_package_name}'. "
+        )
+    endif()
+  else()
+    if(NOT DEFINED _parsed_DEFAULT)
+      message(
+        FATAL_ERROR "You must specify a default value for the dependency '${_package_name}'. "
+                    "Use 'DEFAULT ON' or 'DEFAULT OFF'."
+        )
+    endif()
+  endif()
+
   # Sanitize the package name: all upper case, no hyphens and dots.
   string(TOUPPER ${_package_name} _package_name_sanitized)
   string(REGEX REPLACE "[^A-Z0-9]" "_" _package_name_sanitized ${_package_name_sanitized})
 
   # Add a cache entry to turn the option ON or OFF.
   four_c_process_global_option(
-    FOUR_C_WITH_${_package_name_sanitized} "Build 4C with ${_package_name}" ${_parsed_DEFAULT}
+    FOUR_C_WITH_${_package_name_sanitized}
+    DESCRIPTION
+    "Build 4C with ${_package_name}"
+    DEFAULT
+    ${_parsed_DEFAULT}
     )
   # Add a cache entry to set the root directory of the package.
   four_c_process_cache_variable(
@@ -219,18 +247,6 @@ function(four_c_configure_dependency _package_name)
     DEFAULT
     ""
     )
-
-  if(${_parsed_DEFAULT} STREQUAL "ON")
-    if(NOT FOUR_C_WITH_${_package_name_sanitized})
-      message(
-        FATAL_ERROR
-          "The dependency ${_package_name} is required, so you cannot set option "
-          "FOUR_C_WITH_${_package_name_sanitized} to OFF. "
-          "Please set 'FOUR_C_WITH_${_package_name_sanitized}' to ON "
-          "(or remove the manually set variable)."
-        )
-    endif()
-  endif()
 
   if(FOUR_C_WITH_${_package_name_sanitized})
     if(${_package_name}_ROOT)

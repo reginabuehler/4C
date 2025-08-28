@@ -26,6 +26,7 @@
 #include <functional>
 #include <optional>
 #include <ostream>
+#include <tuple>
 #include <variant>
 
 FOUR_C_NAMESPACE_OPEN
@@ -83,6 +84,21 @@ namespace Core::IO
           out << " ";
         }
       }
+
+      template <typename... Ts>
+      void operator()(std::ostream& out, const std::tuple<Ts...>& vals) const
+      {
+        std::apply([&](const auto&... vals) { (((*this)(out, vals), out << " "), ...); }, vals);
+      }
+
+      template <typename T1, typename T2>
+      void operator()(std::ostream& out, const std::pair<T1, T2>& val) const
+      {
+        (*this)(out, val.first);
+        out << " ";
+        (*this)(out, val.second);
+        out << " ";
+      }
     };
 
     template <typename T>
@@ -136,6 +152,31 @@ namespace Core::IO
       std::string operator()()
       {
         return "map<" + PrettyTypeName<T>{}() + ", " + PrettyTypeName<U>{}() + ">";
+      }
+    };
+
+    template <typename... Ts>
+    struct PrettyTypeName<std::tuple<Ts...>>
+    {
+      std::string operator()()
+      {
+        std::string result = "tuple<";
+
+        auto append_types = [&]<std::size_t... index>(std::index_sequence<index...>)
+        { ((result += PrettyTypeName<Ts>{}() + (index + 1 < sizeof...(Ts) ? ", " : "")), ...); };
+
+        append_types(std::index_sequence_for<Ts...>{});
+
+        return result += ">";
+      }
+    };
+
+    template <typename T1, typename T2>
+    struct PrettyTypeName<std::pair<T1, T2>>
+    {
+      std::string operator()()
+      {
+        return "pair<" + PrettyTypeName<T1>{}() + ", " + PrettyTypeName<T2>{}() + ">";
       }
     };
 
@@ -208,6 +249,42 @@ namespace Core::IO
         }
         node["value_type"] |= ryml::MAP;
         YamlTypeEmitter<T>{}(node["value_type"], size + 1);
+      }
+    };
+
+    template <typename... Ts>
+    struct YamlTypeEmitter<std::tuple<Ts...>>
+    {
+      template <std::size_t tuple_index = 0>
+      void emit_elements(ryml::NodeRef node, size_t* size)
+      {
+        if constexpr (tuple_index < sizeof...(Ts))
+        {
+          using Te = std::tuple_element_t<tuple_index, std::tuple<Ts...>>;
+          ryml::NodeRef child = node["value_types"].append_child();
+          child |= ryml::MAP;
+          YamlTypeEmitter<Te>{}(child, size + 1);
+
+          emit_elements<tuple_index + 1>(node, size);  // recurse to next element
+        }
+      }
+
+      void operator()(ryml::NodeRef node, size_t* size)
+      {
+        FOUR_C_ASSERT(node.is_map(), "Expected a map node.");
+        node["type"] = "tuple";
+        node["size"] << sizeof...(Ts);
+        node["value_types"] |= ryml::SEQ;
+        emit_elements(node, size);
+      }
+    };
+
+    template <typename T1, typename T2>
+    struct YamlTypeEmitter<std::pair<T1, T2>>
+    {
+      void operator()(ryml::NodeRef node, size_t* size)
+      {
+        YamlTypeEmitter<std::tuple<T1, T2>>{}(node, size);
       }
     };
 
@@ -423,7 +500,7 @@ namespace Core::IO
       //! insert keys and values into the yaml emitter.
       virtual void emit_metadata(YamlNodeRef node) const = 0;
 
-      virtual bool emit(YamlNodeRef node, const InputParameterContainer&,
+      [[nodiscard]] virtual bool emit(YamlNodeRef node, const InputParameterContainer&,
           const InputSpecEmitOptions& options) const = 0;
 
       [[nodiscard]] virtual std::string pretty_type_name() const = 0;
@@ -485,7 +562,7 @@ namespace Core::IO
 
       void emit_metadata(YamlNodeRef node) const override { wrapped.emit_metadata(node); }
 
-      bool emit(YamlNodeRef node, const InputParameterContainer& container,
+      [[nodiscard]] bool emit(YamlNodeRef node, const InputParameterContainer& container,
           const InputSpecEmitOptions& options) const override
       {
         return wrapped.emit(node, container, options);
@@ -519,7 +596,7 @@ namespace Core::IO
         }
       }
 
-      std::string pretty_type_name() const override
+      [[nodiscard]] std::string pretty_type_name() const override
       {
         if constexpr (StoresType<T>)
         {
@@ -671,21 +748,44 @@ namespace Core::IO
     using SelectionCallback = std::function<void(const DefaultStorage&, Storage&)>;
 
     /**
-     * A tag type to indicate that a parameter cannot take default values.
+     * A tag type to indicate that a field in the parameter data cannot take a value.
      */
-    struct NoDefault
+    struct RejectField
     {
+      RejectField() = default;
+
+      template <typename T>
+      RejectField(const T&)
+      {
+        static_assert(false,
+            "You try to assign a value to a field that does not take a value for this parameter "
+            "type.");
+      }
     };
 
     /**
      * The type used for the default value of a parameter. If the parameter is optional, the user
-     * cannot specify a default value, so this type becomes NoDefault. Otherwise, the default value
-     * can be either not set, resulting in the std::monostate, or set to a value of the parameter
-     * type.
+     * cannot specify a default value, so this type becomes RejectField. Otherwise, the default
+     * value can be either not set, resulting in the std::monostate, or set to a value of the
+     * parameter type.
      */
     template <typename T>
     using DefaultType =
-        std::conditional_t<OptionalType<T>, NoDefault, std::variant<std::monostate, T>>;
+        std::conditional_t<OptionalType<T>, RejectField, std::variant<std::monostate, T>>;
+
+    /**
+     * Function type for a function that describes enum values.
+     */
+    template <typename T>
+    using EnumValueDescriptionFunction = std::function<std::string(T)>;
+
+    /**
+     * The type used for the enum value description. If T is not an enum type, this is
+     * equal to RejectField.
+     */
+    template <typename T>
+    using EnumValueDescription =
+        std::conditional_t<std::is_enum_v<T>, EnumValueDescriptionFunction<T>, RejectField>;
 
     //! Additional parameters for a parameter().
     template <typename T>
@@ -696,6 +796,11 @@ namespace Core::IO
        * An optional description of the value.
        */
       std::string description{};
+
+      /**
+       * An optional description of the enum values. This is only possible for enum types.
+       */
+      EnumValueDescription<T> enum_value_description{};
 
       /**
        * The default value of the parameter. If this field is set, the parameter does not need to be
@@ -875,6 +980,8 @@ namespace Core::IO
       using StoredType = T;
 
       std::string description{};
+
+      InputSpecBuilders::EnumValueDescriptionFunction<T> enum_value_description{};
 
       std::variant<std::monostate, StoredType> default_value{};
 
@@ -1064,7 +1171,11 @@ namespace Core::IO
 
     struct SizeChecker
     {
-      constexpr bool operator()(const auto& val, std::size_t* size_info) const { return true; }
+      constexpr bool operator()(const auto& val, std::size_t* size_info) const
+      {
+        static_assert(rank<decltype(val)>() == 0, "Missing overload.");
+        return true;
+      }
 
       template <typename U>
       constexpr bool operator()(const std::vector<U>& v, std::size_t* size_info) const
@@ -1080,6 +1191,44 @@ namespace Core::IO
         return ((*size_info == InputSpecBuilders::dynamic_size) || (m.size() == *size_info)) &&
                std::ranges::all_of(
                    m, [&](const auto& val) { return this->operator()(val.second, size_info + 1); });
+      }
+
+      template <typename... Ts>
+      constexpr bool operator()(const std::tuple<Ts...>& t, std::size_t* size_info) const
+      {
+        return std::invoke(
+            [&]<std::size_t... is>(std::index_sequence<is...>)
+            {
+              bool result = true;
+              std::size_t offset = 0;
+
+              ((result = result && this->operator()(std::get<is>(t), size_info + offset),
+                   offset += rank<std::tuple_element_t<is, std::tuple<Ts...>>>()),
+                  ...);
+
+              return result;
+            },
+            std::index_sequence_for<Ts...>{});
+      }
+
+      template <typename T1, typename T2>
+      constexpr bool operator()(const std::pair<T1, T2>& p, std::size_t* size_info) const
+      {
+        return this->operator()(p.first, size_info) &&
+               this->operator()(p.second, size_info + rank<T1>());
+      }
+
+      template <typename T>
+      constexpr bool operator()(const std::optional<T>& opt, std::size_t* size_info) const
+      {
+        if (opt.has_value())
+        {
+          return this->operator()(opt.value(), size_info);
+        }
+        else
+        {
+          return true;
+        }
       }
     };
 
@@ -1731,12 +1880,7 @@ bool Core::IO::Internal::ParameterSpec<T>::match(ConstYamlNodeRef node,
 {
   auto spec_name = ryml::to_csubstr(name);
 
-  // If we are not even in a map, we refuse to do anything and let the MatchTree handle this case.
-  // Setting a default would confuse the user, since something fundamental must be wrong in the
-  // input file.
-  if (!node.node.is_map()) return false;
-
-  if (!node.node.has_child(spec_name))
+  if (!node.node.is_map() || !node.node.has_child(spec_name))
   {
     // It is OK to not encounter an optional parameter
     if (data.default_value.index() == 1)
@@ -1869,6 +2013,11 @@ void Core::IO::Internal::ParameterSpec<T>::emit_metadata(YamlNodeRef node) const
         auto choice_node = choices_node.append_child();
         choice_node |= ryml::MAP;
         emit_value_as_yaml(node.wrap(choice_node["name"]), choice);
+        if (data.enum_value_description)
+        {
+          emit_value_as_yaml(
+              node.wrap(choice_node["description"]), data.enum_value_description(choice));
+        }
       }
     }
   }
@@ -1994,12 +2143,7 @@ bool Core::IO::Internal::DeprecatedSelectionSpec<T>::match(ConstYamlNodeRef node
 {
   auto spec_name = ryml::to_csubstr(name);
 
-  // If we are not even in a map, we refuse to do anything and let the MatchTree handle this case.
-  // Setting a default would confuse the user, since something fundamental must be wrong in the
-  // input file.
-  if (!node.node.is_map()) return false;
-
-  if (!node.node.has_child(spec_name))
+  if (!node.node.is_map() || !node.node.has_child(spec_name))
   {
     // It is OK to not encounter an optional parameter
     if (data.default_value.index() == 1)
@@ -2385,6 +2529,9 @@ Core::IO::InputSpec Core::IO::InputSpecBuilders::parameter(
   internal_data.on_parse_callback = data.on_parse_callback;
   internal_data.validator = data.validator;
   internal_data.store = data.store ? data.store : in_container<T>(name);
+
+  if constexpr (std::is_enum_v<T>)
+    internal_data.enum_value_description = data.enum_value_description;
 
   if (internal_data.default_value.index() == 1 &&
       !Internal::validate_helper(std::get<1>(internal_data.default_value), data.validator))

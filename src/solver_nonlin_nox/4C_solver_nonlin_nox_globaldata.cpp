@@ -15,11 +15,11 @@
 #include "4C_solver_nonlin_nox_direction_factory.hpp"
 #include "4C_solver_nonlin_nox_linearsystem.hpp"
 #include "4C_solver_nonlin_nox_meritfunction_factory.hpp"
+#include "4C_solver_nonlin_nox_scaling.hpp"
 #include "4C_solver_nonlin_nox_solver_prepostop_generic.hpp"
 #include "4C_utils_exceptions.hpp"
 
 #include <NOX_Epetra_Interface_Jacobian.H>
-#include <NOX_Epetra_Interface_Preconditioner.H>
 #include <NOX_Epetra_Interface_Required.H>
 #include <NOX_Utils.H>
 #include <Teuchos_ParameterList.hpp>
@@ -38,16 +38,14 @@ NOX::Nln::GlobalData::GlobalData(MPI_Comm comm, Teuchos::ParameterList& noxParam
     const Teuchos::RCP<::NOX::Epetra::Interface::Jacobian>& iJac,
     const NOX::Nln::OptimizationProblemType& type,
     const NOX::Nln::CONSTRAINT::ReqInterfaceMap& iConstr,
-    const Teuchos::RCP<::NOX::Epetra::Interface::Preconditioner>& iPrec,
     const NOX::Nln::CONSTRAINT::PrecInterfaceMap& iConstrPrec,
-    const Teuchos::RCP<::NOX::Epetra::Scaling>& iScale)
+    const std::shared_ptr<NOX::Nln::Scaling>& iScale)
     : comm_(comm),
       nlnparams_(Teuchos::rcpFromRef(noxParams)),
       opt_type_(type),
       lin_solvers_(linSolvers),
       i_req_ptr_(iReq),
       i_jac_ptr_(iJac),
-      i_prec_ptr_(iPrec),
       i_constr_(iConstr),
       i_constr_prec_(iConstrPrec),
       i_scale_(iScale),
@@ -73,34 +71,10 @@ NOX::Nln::GlobalData::GlobalData(MPI_Comm comm, Teuchos::ParameterList& noxParam
       lin_solvers_(linSolvers),
       i_req_ptr_(iReq),
       i_jac_ptr_(iJac),
-      i_prec_ptr_(Teuchos::null),  // no pre-conditioner
       i_constr_(iConstr),
       mrt_fct_ptr_(Teuchos::null),
       pre_post_op_ptr_(Teuchos::null),
       is_constrained_(type != opt_unconstrained)
-{
-  check_input();
-  // do some setup things
-  setup();
-}
-
-/*----------------------------------------------------------------------------*
- *----------------------------------------------------------------------------*/
-NOX::Nln::GlobalData::GlobalData(MPI_Comm comm, Teuchos::ParameterList& noxParams,
-    const NOX::Nln::LinearSystem::SolverMap& linSolvers,
-    const Teuchos::RCP<::NOX::Epetra::Interface::Required>& iReq,
-    const Teuchos::RCP<::NOX::Epetra::Interface::Jacobian>& iJac,
-    const Teuchos::RCP<::NOX::Epetra::Interface::Preconditioner>& iPrec)
-    : comm_(comm),
-      nlnparams_(Teuchos::rcpFromRef(noxParams)),
-      opt_type_(opt_unconstrained),
-      lin_solvers_(linSolvers),
-      i_req_ptr_(iReq),
-      i_jac_ptr_(iJac),
-      i_prec_ptr_(iPrec),
-      mrt_fct_ptr_(Teuchos::null),
-      pre_post_op_ptr_(Teuchos::null),
-      is_constrained_(false)
 {
   check_input();
   // do some setup things
@@ -119,7 +93,6 @@ NOX::Nln::GlobalData::GlobalData(MPI_Comm comm, Teuchos::ParameterList& noxParam
       lin_solvers_(linSolvers),
       i_req_ptr_(iReq),
       i_jac_ptr_(iJac),
-      i_prec_ptr_(Teuchos::null),  // no pre-conditioner
       mrt_fct_ptr_(Teuchos::null),
       pre_post_op_ptr_(Teuchos::null),
       is_constrained_(false)
@@ -391,15 +364,6 @@ Teuchos::RCP<::NOX::Epetra::Interface::Jacobian> NOX::Nln::GlobalData::get_jacob
 
   return i_jac_ptr_;
 }
-/*----------------------------------------------------------------------------*
- *----------------------------------------------------------------------------*/
-Teuchos::RCP<::NOX::Epetra::Interface::Preconditioner>
-NOX::Nln::GlobalData::get_preconditioner_interface()
-{
-  /* We explicitly allow a return value of Teuchos::nullptr, because the
-   * preconditioner interface is in many cases optional */
-  return i_prec_ptr_;
-}
 
 /*----------------------------------------------------------------------------*
  *----------------------------------------------------------------------------*/
@@ -426,7 +390,7 @@ bool NOX::Nln::GlobalData::is_constrained() const { return is_constrained_; }
 
 /*----------------------------------------------------------------------------*
  *----------------------------------------------------------------------------*/
-const Teuchos::RCP<::NOX::Epetra::Scaling>& NOX::Nln::GlobalData::get_scaling_object()
+const std::shared_ptr<NOX::Nln::Scaling>& NOX::Nln::GlobalData::get_scaling_object()
 {
   return i_scale_;
 }

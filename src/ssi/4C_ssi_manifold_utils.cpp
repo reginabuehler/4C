@@ -544,7 +544,7 @@ void SSI::ScaTraManifoldScaTraFluxEvaluator::add_condition_contribution()
     case Core::LinAlg::MatrixType::block_condition:
     case Core::LinAlg::MatrixType::block_condition_dof:
     {
-      auto blockmaps_manifold = *scatra_manifold_->scatra_field()->block_maps();
+      auto blockmaps_manifold = *scatra_manifold_->scatra_field()->dof_block_maps();
 
       /*
        * m: manifold
@@ -779,7 +779,7 @@ void SSI::ScaTraManifoldScaTraFluxEvaluator::un_complete_matrices_if_necessary(
 {
   // definition of lambda function to get size of graph for given matrix
   auto graph_size = [](std::shared_ptr<Core::LinAlg::SparseMatrix> matrix)
-  { return matrix->epetra_matrix()->Graph().NumGlobalEntries(); };
+  { return matrix->num_global_nonzeros(); };
 
   // get size of graphs of conditions matrices
   const int size_manifold_scatra_graph_ = graph_size(matrix_manifold_scatra_cond_);

@@ -416,7 +416,7 @@ void FPSI::Monolithic::time_step()
   // recover Lagrange multiplier \lambda_{\Gamma} at the interface at the end of each time step
   // (i.e. condensed traction/forces onto the structure) needed for rhs in next time step
   if (FSI_Interface_exists_)
-    recover_lagrange_multiplier();  // LagrangeMultiplier of the FSI interface!
+    recover_lagrange_multiplier();  // Lagrange multiplier of the FSI interface!
 }
 
 /*----------------------------------------------------------------------*/
@@ -675,22 +675,26 @@ void FPSI::Monolithic::create_linear_solver()
   solver_->put_solver_params_to_sub_params("Inverse1", ssolverparams,
       Global::Problem::instance()->solver_params_callback(),
       Teuchos::getIntegralValue<Core::IO::Verbositylevel>(
-          Global::Problem::instance()->io_params(), "VERBOSITY"));
+          Global::Problem::instance()->io_params(), "VERBOSITY"),
+      get_comm());
   // poro fluid
   solver_->put_solver_params_to_sub_params("Inverse2", fsolverparams,
       Global::Problem::instance()->solver_params_callback(),
       Teuchos::getIntegralValue<Core::IO::Verbositylevel>(
-          Global::Problem::instance()->io_params(), "VERBOSITY"));
+          Global::Problem::instance()->io_params(), "VERBOSITY"),
+      get_comm());
   // fluid
   solver_->put_solver_params_to_sub_params("Inverse3", fsolverparams,
       Global::Problem::instance()->solver_params_callback(),
       Teuchos::getIntegralValue<Core::IO::Verbositylevel>(
-          Global::Problem::instance()->io_params(), "VERBOSITY"));
+          Global::Problem::instance()->io_params(), "VERBOSITY"),
+      get_comm());
   // ale
   solver_->put_solver_params_to_sub_params("Inverse4", asolverparams,
       Global::Problem::instance()->solver_params_callback(),
       Teuchos::getIntegralValue<Core::IO::Verbositylevel>(
-          Global::Problem::instance()->io_params(), "VERBOSITY"));
+          Global::Problem::instance()->io_params(), "VERBOSITY"),
+      get_comm());
 
   // prescribe rigid body modes
   Core::LinearSolver::Parameters::compute_solver_parameters(
@@ -784,7 +788,7 @@ void FPSI::Monolithic::linear_solve()
       // standard solver call
       solver_params.refactor = true;
       solver_params.reset = iter_ == 1;
-      solver_->solve(sparse->epetra_operator(), iterinc_, rhs_, solver_params);
+      solver_->solve(sparse, iterinc_, rhs_, solver_params);
     }
   }
   else
@@ -803,7 +807,7 @@ void FPSI::Monolithic::linear_solve()
     Core::LinAlg::SolverParams solver_params;
     solver_params.refactor = true;
     solver_params.reset = iter_ == 1;
-    solver_->solve(systemmatrix_->epetra_operator(), iterinc_, rhs_, solver_params);
+    solver_->solve(systemmatrix_, iterinc_, rhs_, solver_params);
   }
 }
 
@@ -906,7 +910,7 @@ void FPSI::Monolithic::line_search(Core::LinAlg::SparseMatrix& sparse)
     Core::LinAlg::SolverParams solver_params;
     solver_params.refactor = true;
     solver_params.reset = iter_ == 1;
-    solver_->solve(sparse.epetra_operator(), iterinc_, rhs_, solver_params);
+    solver_->solve(Core::Utils::shared_ptr_from_ref(sparse), iterinc_, rhs_, solver_params);
   }
 
   if (islinesearch_ == false)

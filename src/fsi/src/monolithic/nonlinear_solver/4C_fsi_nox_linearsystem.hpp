@@ -10,16 +10,16 @@
 
 #include "4C_config.hpp"
 
+#include "4C_linalg_sparseoperator.hpp"
+#include "4C_solver_nonlin_nox_linearsystem_base.hpp"
+#include "4C_solver_nonlin_nox_scaling.hpp"
 #include "4C_utils_parameter_list.fwd.hpp"
 
 #include <NOX.H>
 #include <NOX_Common.H>
 #include <NOX_Epetra_Group.H>
 #include <NOX_Epetra_Interface_Jacobian.H>
-#include <NOX_Epetra_Interface_Preconditioner.H>
 #include <NOX_Epetra_Interface_Required.H>
-#include <NOX_Epetra_LinearSystem.H>
-#include <NOX_Epetra_Scaling.H>
 #include <NOX_Epetra_Vector.H>
 #include <NOX_Utils.H>
 #include <Teuchos_Time.hpp>
@@ -36,7 +36,7 @@ namespace Core::LinAlg
 
 namespace NOX::FSI
 {
-  class LinearSystem : public ::NOX::Epetra::LinearSystem
+  class LinearSystem : public NOX::Nln::LinearSystemBase
   {
    private:
     enum OperatorType
@@ -53,13 +53,14 @@ namespace NOX::FSI
     LinearSystem(Teuchos::ParameterList& printParams,  ///< printing parameters
         Teuchos::ParameterList& linearSolverParams,    ///< parameters for linear solution
         const std::shared_ptr<::NOX::Epetra::Interface::Jacobian>&
-            iJac,                                   ///< NOX interface to Jacobian
-        const std::shared_ptr<Epetra_Operator>& J,  ///< the Jacobian or stiffness matrix
-        const ::NOX::Epetra::Vector& cloneVector,   ///< initial guess of the solution process
+            iJac,  ///< NOX interface to Jacobian
+        const std::shared_ptr<Core::LinAlg::SparseOperator>&
+            J,                                     ///< the Jacobian or stiffness matrix
+        const ::NOX::Epetra::Vector& cloneVector,  ///< initial guess of the solution process
         std::shared_ptr<Core::LinAlg::Solver>
             structure_solver,  ///< (used-defined) linear algebraic solver
-        const Teuchos::RCP<::NOX::Epetra::Scaling> scalingObject =
-            Teuchos::null);  ///< scaling of the linear system
+        const std::shared_ptr<NOX::Nln::Scaling> scalingObject =
+            nullptr);  ///< scaling of the linear system
 
     /// provide storage pattern of tangent matrix, i.e. the operator
     OperatorType get_operator_type(const Epetra_Operator& Op);
@@ -80,58 +81,14 @@ namespace NOX::FSI
     bool applyJacobianInverse(Teuchos::ParameterList& params, const ::NOX::Epetra::Vector& input,
         ::NOX::Epetra::Vector& result) override;
 
-    /// Apply right preconditiong to the given input vector.
-    bool applyRightPreconditioning(bool useTranspose, Teuchos::ParameterList& params,
-        const ::NOX::Epetra::Vector& input, ::NOX::Epetra::Vector& result) const override;
-
-    /// Get the scaling object.
-    Teuchos::RCP<::NOX::Epetra::Scaling> getScaling() override;
-
-    /// Sets the diagonal scaling vector(s) used in scaling the linear system.
-    void resetScaling(const Teuchos::RCP<::NOX::Epetra::Scaling>& s) override;
-
     /// Evaluates the Jacobian based on the solution vector x.
     bool computeJacobian(const ::NOX::Epetra::Vector& x) override;
-
-    /// Explicitly constructs a preconditioner based on the solution vector x and the parameter
-    /// list p.
-    bool createPreconditioner(const ::NOX::Epetra::Vector& x, Teuchos::ParameterList& p,
-        bool recomputeGraph) const override;
-
-    /// Deletes the preconditioner.
-    bool destroyPreconditioner() const override;
-
-    /// Recalculates the preconditioner using an already allocated graph.
-    bool recomputePreconditioner(
-        const ::NOX::Epetra::Vector& x, Teuchos::ParameterList& linearSolverParams) const override;
-
-    /// Evaluates the preconditioner policy at the current state.
-    PreconditionerReusePolicyType getPreconditionerPolicy(bool advanceReuseCounter = true) override;
-
-    /// Indicates whether a preconditioner has been constructed.
-    bool isPreconditionerConstructed() const override;
-
-    /// Indicates whether the linear system has a preconditioner.
-    bool hasPreconditioner() const override;
 
     /// Return Jacobian operator.
     Teuchos::RCP<const Epetra_Operator> getJacobianOperator() const override;
 
     /// Return Jacobian operator.
     Teuchos::RCP<Epetra_Operator> getJacobianOperator() override;
-
-    /// Return preconditioner operator.
-    Teuchos::RCP<const Epetra_Operator> getGeneratedPrecOperator() const override;
-
-    /// Return preconditioner operator.
-    Teuchos::RCP<Epetra_Operator> getGeneratedPrecOperator() override;
-
-    /// Set Jacobian operator for solve.
-    void setJacobianOperatorForSolve(
-        const Teuchos::RCP<const Epetra_Operator>& solveJacOp) override;
-
-    /// Set preconditioner operator for solve.
-    void setPrecOperatorForSolve(const Teuchos::RCP<const Epetra_Operator>& solvePrecOp) override;
 
    private:
     /// throw an error
@@ -140,11 +97,10 @@ namespace NOX::FSI
     ::NOX::Utils utils_;
 
     std::shared_ptr<::NOX::Epetra::Interface::Jacobian> jac_interface_ptr_;
-    std::shared_ptr<::NOX::Epetra::Interface::Preconditioner> prec_interface_ptr_;
     OperatorType jac_type_;
     mutable std::shared_ptr<Epetra_Operator> jac_ptr_;
-    mutable std::shared_ptr<Epetra_Operator> prec_ptr_;
-    Teuchos::RCP<::NOX::Epetra::Scaling> scaling_;
+    mutable std::shared_ptr<Core::LinAlg::SparseOperator> operator_;
+    std::shared_ptr<NOX::Nln::Scaling> scaling_;
     mutable std::shared_ptr<::NOX::Epetra::Vector> tmp_vector_ptr_;
 
     bool output_solve_details_;

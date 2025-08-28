@@ -1233,7 +1233,7 @@ void PoroPressureBased::PorofluidAlgorithm::linear_solve(
   {
     solver_params.refactor = true;
     solver_params.reset = true;
-    solver_->solve(sysmat_->epetra_operator(), increment_, residual_, solver_params);
+    solver_->solve(sysmat_, increment_, residual_, solver_params);
   }
 
   solver_->reset_tolerance();
@@ -1411,8 +1411,8 @@ void PoroPressureBased::PorofluidAlgorithm::reconstruct_pressures_and_saturation
     // evaluations
     for (int i = 0; i < discret_->dof_row_map()->num_my_elements(); i++)
     {
-      (*pressure_)[i] *= 1.0 / (*counter)[i];
-      (*saturation_)[i] *= 1.0 / (*counter)[i];
+      (*pressure_).get_values()[i] *= 1.0 / (*counter)[i];
+      (*saturation_).get_values()[i] *= 1.0 / (*counter)[i];
     }
   }
 
@@ -1455,7 +1455,7 @@ void PoroPressureBased::PorofluidAlgorithm::reconstruct_solid_pressures()
   // evaluations
   for (int i = 0; i < discret_->dof_row_map(nds_solidpressure_)->num_my_elements(); i++)
   {
-    (*solidpressure_)[i] *= 1.0 / (*counter)[i];
+    (*solidpressure_).get_values()[i] *= 1.0 / (*counter)[i];
   }
 }
 
@@ -1536,7 +1536,7 @@ void PoroPressureBased::PorofluidAlgorithm::reconstruct_porosity()
   // evaluations
   for (int i = 0; i < discret_->dof_row_map(nds_solidpressure_)->num_my_elements(); i++)
   {
-    (*porosity_)[i] *= 1.0 / (*counter)[i];
+    (*porosity_).get_values()[i] *= 1.0 / (*counter)[i];
   }
 }
 
@@ -2055,7 +2055,7 @@ void PoroPressureBased::PorofluidAlgorithm::calc_initial_time_derivative()
   Core::LinAlg::SolverParams solver_params;
   solver_params.refactor = true;
   solver_params.reset = true;
-  solver_->solve(sysmat_->epetra_operator(), phidtnp_, residual_, solver_params);
+  solver_->solve(sysmat_, phidtnp_, residual_, solver_params);
 
   // copy solution
   phidtn_->update(1.0, *phidtnp_, 0.0);

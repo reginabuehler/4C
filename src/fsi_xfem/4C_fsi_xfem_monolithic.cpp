@@ -1912,13 +1912,13 @@ void FSI::MonolithicXFEM::permute_fluid_dofs_forward(Core::LinAlg::Vector<double
       {
         tmp_value =
             (fx)[fx.get_map().lid(*(key + 1))];  // save the value before it will be overwritten
-        (fx)[fx.get_map().lid(*(key + 1))] =
+        (fx).get_values()[fx.get_map().lid(*(key + 1))] =
             (fx)[fx.get_map().lid(*(key))];  // set current value to next position
         // std::cout << "copy value from gid " << *(key) << " to " << *(key+1) << std::endl;
       }
       else  // last value in cycle reached
       {
-        (fx)[fx.get_map().lid(*p_cycle.begin())] = tmp_value;
+        (fx).get_values()[fx.get_map().lid(*p_cycle.begin())] = tmp_value;
         // std::cout << "copy value from tmp to " << *p_cycle.begin() << std::endl;
       }
     }
@@ -1966,14 +1966,14 @@ void FSI::MonolithicXFEM::permute_fluid_dofs_backward(Core::LinAlg::Vector<doubl
       {
         tmp_value = (fx)[fx.get_map().lid(
             *(key_reverse - 1))];  // save the value before it will be overwritten
-        (fx)[fx.get_map().lid(*(key_reverse - 1))] =
+        (fx).get_values()[fx.get_map().lid(*(key_reverse - 1))] =
             (fx)[fx.get_map().lid(*(key_reverse))];  // set current value to position before
         // std::cout << "copy value from gid " << *(key_reverse) << " to " << *(key_reverse-1) <<
         // std::endl;
       }
       else
       {
-        (fx)[fx.get_map().lid(*(p_cycle.end() - 1))] = tmp_value;
+        (fx).get_values()[fx.get_map().lid(*(p_cycle.end() - 1))] = tmp_value;
         // std::cout << "copy value from tmp to " << *(p_cycle.end()-1) << std::endl;
       }
     }
@@ -2128,11 +2128,13 @@ void FSI::MonolithicXFEM::create_linear_solver()
       solver_->put_solver_params_to_sub_params("Inverse1", ssolverparams,
           Global::Problem::instance()->solver_params_callback(),
           Teuchos::getIntegralValue<Core::IO::Verbositylevel>(
-              Global::Problem::instance()->io_params(), "VERBOSITY"));
+              Global::Problem::instance()->io_params(), "VERBOSITY"),
+          get_comm());
       solver_->put_solver_params_to_sub_params("Inverse2", fsolverparams,
           Global::Problem::instance()->solver_params_callback(),
           Teuchos::getIntegralValue<Core::IO::Verbositylevel>(
-              Global::Problem::instance()->io_params(), "VERBOSITY"));
+              Global::Problem::instance()->io_params(), "VERBOSITY"),
+          get_comm());
 
       // ... 4C calculates the null space vectors. These are then stored in the sublists
       //     Inverse1 and Inverse2 from where they...
@@ -2189,14 +2191,16 @@ void FSI::MonolithicXFEM::create_linear_solver()
       solver_->put_solver_params_to_sub_params("Inverse1", ssolverparams,
           Global::Problem::instance()->solver_params_callback(),
           Teuchos::getIntegralValue<Core::IO::Verbositylevel>(
-              Global::Problem::instance()->io_params(), "VERBOSITY"));
+              Global::Problem::instance()->io_params(), "VERBOSITY"),
+          get_comm());
       Core::LinearSolver::Parameters::compute_solver_parameters(
           *structure_poro()->discretization(), solver_->params().sublist("Inverse1"));
 
       solver_->put_solver_params_to_sub_params("Inverse2", fsolverparams,
           Global::Problem::instance()->solver_params_callback(),
           Teuchos::getIntegralValue<Core::IO::Verbositylevel>(
-              Global::Problem::instance()->io_params(), "VERBOSITY"));
+              Global::Problem::instance()->io_params(), "VERBOSITY"),
+          get_comm());
       Core::LinearSolver::Parameters::compute_solver_parameters(
           *fluid_field()->discretization(), solver_->params().sublist("Inverse2"));
 
@@ -2205,7 +2209,8 @@ void FSI::MonolithicXFEM::create_linear_solver()
         solver_->put_solver_params_to_sub_params("Inverse3", fsolverparams,
             Global::Problem::instance()->solver_params_callback(),
             Teuchos::getIntegralValue<Core::IO::Verbositylevel>(
-                Global::Problem::instance()->io_params(), "VERBOSITY"));
+                Global::Problem::instance()->io_params(), "VERBOSITY"),
+            get_comm());
         Core::LinearSolver::Parameters::compute_solver_parameters(
             *structure_poro()->fluid_field()->discretization(),
             solver_->params().sublist("Inverse3"));
@@ -2219,7 +2224,8 @@ void FSI::MonolithicXFEM::create_linear_solver()
           solver_->put_solver_params_to_sub_params("Inverse3", asolverparams,
               Global::Problem::instance()->solver_params_callback(),
               Teuchos::getIntegralValue<Core::IO::Verbositylevel>(
-                  Global::Problem::instance()->io_params(), "VERBOSITY"));
+                  Global::Problem::instance()->io_params(), "VERBOSITY"),
+              get_comm());
           Core::LinearSolver::Parameters::compute_solver_parameters(
               *ale_field()->write_access_discretization(), solver_->params().sublist("Inverse3"));
         }
@@ -2228,7 +2234,8 @@ void FSI::MonolithicXFEM::create_linear_solver()
           solver_->put_solver_params_to_sub_params("Inverse4", asolverparams,
               Global::Problem::instance()->solver_params_callback(),
               Teuchos::getIntegralValue<Core::IO::Verbositylevel>(
-                  Global::Problem::instance()->io_params(), "VERBOSITY"));
+                  Global::Problem::instance()->io_params(), "VERBOSITY"),
+              get_comm());
           Core::LinearSolver::Parameters::compute_solver_parameters(
               *ale_field()->write_access_discretization(), solver_->params().sublist("Inverse4"));
         }
@@ -2282,7 +2289,7 @@ void FSI::MonolithicXFEM::linear_solve()
     // solve the problem, work is done here!
     solver_params.refactor = true;
     solver_params.reset = iter_ == 1;
-    solver_->solve(systemmatrix_->epetra_operator(), iterinc_, rhs_, solver_params);
+    solver_->solve(systemmatrix_, iterinc_, rhs_, solver_params);
 
     // Infnormscaling: unscale system after solving
     unscale_solution(*systemmatrix_, *iterinc_, *rhs_);
@@ -2307,7 +2314,7 @@ void FSI::MonolithicXFEM::linear_solve()
     Core::LinAlg::SolverParams solver_params;
     solver_params.refactor = true;
     solver_params.reset = iter_ == 1;
-    solver_->solve(sparse->epetra_operator(), iterinc_, rhs_, solver_params);
+    solver_->solve(sparse, iterinc_, rhs_, solver_params);
   }  // MergeBlockMatrix
 
   apply_newton_damping();

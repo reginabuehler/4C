@@ -9,7 +9,6 @@
 
 import argparse
 import json
-
 from pathlib import Path
 
 from metadata_utils import (
@@ -26,7 +25,9 @@ from metadata_utils import (
     One_Of,
     Primitive,
     RangeValidator,
+    PatternValidator,
     Selection,
+    Tuple,
     Vector,
     metadata_object_from_file,
 )
@@ -66,6 +67,9 @@ def validator_to_schema(validator):
 
             return data
 
+        case PatternValidator():
+            return {"pattern": validator.pattern}
+
         case _:
             if validator is not None:
                 print(f"Validator {validator} not supported by JSON schema.")
@@ -89,6 +93,7 @@ def json_schema(
     patternProperties=None,
     additionalProperties=False,
     items=None,
+    prefixItems=None,
     minItems=None,
     maxItems=None,
     validator=None,
@@ -141,6 +146,7 @@ def json_schema(
     # Arrays
     if schema_type == "array":
         set_if_not_none(schema, "items", items)
+        set_if_not_none(schema, "prefixItems", prefixItems)
         set_if_not_none(schema, "maxItems", maxItems)
         set_if_not_none(schema, "minItems", minItems)
 
@@ -181,7 +187,9 @@ def schema_from_enum(enum):
         dict: JSON schema data
     """
     # One could also do this using a oneOf where the choices are strings with constant values.
-    # This would allow to add a description for each option.
+    # This would allow to add a description for each option. However, at the time we tried
+    # this, good editor support was not available for this feature, i.e., editors only show
+    # either the description of the parameter or the description of the choice, but not both.
     schema = json_schema(
         schema_type=FOURC_BASE_TYPES_TO_JSON_SCHEMA_DICT["string"],
         title=enum.short_description(),
@@ -284,6 +292,24 @@ def array_schema(parameter, items):
     return schema
 
 
+def schema_from_tuple(tuple):
+    """Create schema from tuple.
+    Args:
+        tuple (Tuple): Tuple parameter
+    Returns:
+        dict: JSON schema data
+    """
+    schema = json_schema(
+        title=tuple.short_description(),
+        description=tuple.description,
+        schema_type="array",
+        prefixItems=[get_schema(vt) for vt in tuple.value_types],
+        noneable=tuple.noneable,
+    )
+
+    return schema
+
+
 def schema_from_vector(vector):
     """Create schema from vector.
 
@@ -296,7 +322,10 @@ def schema_from_vector(vector):
     if isinstance(vector.description, NotSet):
         # ignore this entry
         vector.description = None
-    items = get_schema(vector.value_type)
+    inner_type = vector.value_type
+    if vector.validator is not None:
+        inner_type.validator = vector.validator.inner_validator
+    items = get_schema(inner_type)
     return array_schema(vector, items)
 
 
@@ -489,6 +518,8 @@ def get_schema(parameter):
             schema = schema_from_enum(parameter)
         case Vector():
             schema = schema_from_vector(parameter)
+        case Tuple():
+            schema = schema_from_tuple(parameter)
         case Map():
             schema = schema_from_map(parameter)
         case Primitive():

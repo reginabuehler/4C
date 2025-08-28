@@ -11,10 +11,10 @@
 #include "4C_config.hpp"
 
 #include "4C_io_pstream.hpp"
+#include "4C_linalg_sparseoperator.hpp"
 #include "4C_linalg_vector.hpp"
 #include "4C_utils_exceptions.hpp"
 
-#include <Epetra_Operator.h>
 #include <Teuchos_ParameterList.hpp>
 
 #include <functional>
@@ -33,7 +33,6 @@ namespace Core::LinAlg
 
 namespace Core::LinearSolver
 {
-  template <class MatrixType, class VectorType>
   class SolverTypeBase;
 }
 
@@ -66,12 +65,7 @@ namespace Core::LinAlg
   };
 
   /*!
-  \brief A general solver interface to Trilinos solvers and spooles
-
-  - The input of parameters needs to be completely reworked (hiwi job)
-
-  - This class should implement Epetra_Operator in the future
-
+  \brief A general solver interface
   */
   class Solver
   {
@@ -91,7 +85,7 @@ namespace Core::LinAlg
 
     \param inparams (in): input parameter list as provided by Global::Problem,
                           e.g. Global::Problem::SolverParams(num)
-    \param comm     (in): a reference to a Epetra communicator object
+    \param comm     (in): a reference to a communicator object
     \param get_solver_params (in): function to get solver parameters based on ID used inside
                                    inparams
     \param verbosity (in): verbosity level for output
@@ -115,7 +109,7 @@ namespace Core::LinAlg
                                to matrix kernel.
     \param params  (in)    : parameters for the solver. See documentation of SolverParams
     */
-    void setup(std::shared_ptr<Epetra_Operator> matrix,
+    void setup(std::shared_ptr<Core::LinAlg::SparseOperator> matrix,
         std::shared_ptr<Core::LinAlg::MultiVector<double>> x,
         std::shared_ptr<Core::LinAlg::MultiVector<double>> b, const SolverParams& params);
 
@@ -132,11 +126,11 @@ namespace Core::LinAlg
                                to matrix kernel.
     \param params  (in)    : parameters for the solver. See documentation of SolverParams
     */
-    int solve_with_multi_vector(std::shared_ptr<Epetra_Operator> matrix,
+    int solve_with_multi_vector(std::shared_ptr<Core::LinAlg::SparseOperator> matrix,
         std::shared_ptr<Core::LinAlg::MultiVector<double>> x,
         std::shared_ptr<Core::LinAlg::MultiVector<double>> b, const SolverParams& params);
 
-    int solve(std::shared_ptr<Epetra_Operator> matrix,
+    int solve(std::shared_ptr<Core::LinAlg::SparseOperator> matrix,
         std::shared_ptr<Core::LinAlg::Vector<double>> x,
         std::shared_ptr<Core::LinAlg::Vector<double>> b, const SolverParams& params);
 
@@ -179,13 +173,14 @@ namespace Core::LinAlg
     \param get_solver_params (in): function to get solver parameters based on ID used inside
                                    inparams
     \param verbosity (in): verbosity level for output
+    \param comm (in):      MPI communicator
     \return             : internal parameter list ready to be associated
                           with #params_
     */
     static Teuchos::ParameterList translate_solver_parameters(
         const Teuchos::ParameterList& inparams,
         const std::function<const Teuchos::ParameterList&(int)>& get_solver_params,
-        Core::IO::Verbositylevel verbosity);
+        Core::IO::Verbositylevel verbosity, const MPI_Comm& comm);
 
     /*!
     \brief Add a validated input parameter list as sublist to internal
@@ -198,15 +193,16 @@ namespace Core::LinAlg
     \param get_solver_params (in): function to get solver parameters based on ID used inside
                                    inparams
     \param verbosity (in): verbosity level for output
+    \param comm (in):      MPI communicator
 
     */
     void put_solver_params_to_sub_params(const std::string name,
         const Teuchos::ParameterList& inparams,
         const std::function<const Teuchos::ParameterList&(int)>& get_solver_params,
-        Core::IO::Verbositylevel verbosity)
+        Core::IO::Verbositylevel verbosity, const MPI_Comm& comm) const
     {
       (*params_).sublist(name) =
-          translate_solver_parameters(inparams, get_solver_params, verbosity);
+          translate_solver_parameters(inparams, get_solver_params, verbosity, comm);
     }
     //@}
 
@@ -282,9 +278,7 @@ namespace Core::LinAlg
     std::shared_ptr<Teuchos::ParameterList> params_;
 
     /// internal solver strategy
-    std::shared_ptr<
-        Core::LinearSolver::SolverTypeBase<Epetra_Operator, Core::LinAlg::MultiVector<double>>>
-        solver_;
+    std::shared_ptr<Core::LinearSolver::SolverTypeBase> solver_;
 
    private:
     //! don't want = operator

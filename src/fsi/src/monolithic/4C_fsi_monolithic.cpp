@@ -995,14 +995,6 @@ bool FSI::Monolithic::computeJacobian(const Epetra_Vector& x, Epetra_Operator& J
 
 /*----------------------------------------------------------------------------*/
 /*----------------------------------------------------------------------------*/
-bool FSI::Monolithic::computePreconditioner(
-    const Epetra_Vector& x, Epetra_Operator& M, Teuchos::ParameterList* precParams)
-{
-  return true;
-}
-
-/*----------------------------------------------------------------------------*/
-/*----------------------------------------------------------------------------*/
 void FSI::Monolithic::setup_rhs(Core::LinAlg::Vector<double>& f, bool firstcall)
 {
   TEUCHOS_FUNC_TIME_MONITOR("FSI::Monolithic::setup_rhs");
@@ -1102,29 +1094,6 @@ bool FSI::BlockMonolithic::computeJacobian(const Epetra_Vector& x, Epetra_Operat
 
 /*----------------------------------------------------------------------------*/
 /*----------------------------------------------------------------------------*/
-bool FSI::BlockMonolithic::computePreconditioner(
-    const Epetra_Vector& x, Epetra_Operator& M, Teuchos::ParameterList* precParams)
-{
-  TEUCHOS_FUNC_TIME_MONITOR("FSI::BlockMonolithic::computePreconditioner");
-
-  if (precondreusecount_ <= 0)
-  {
-    // Create preconditioner operator. The blocks are already there. This is
-    // the perfect place to initialize the block preconditioners.
-    system_matrix()->setup_preconditioner();
-
-    const Teuchos::ParameterList& fsidyn = Global::Problem::instance()->fsi_dynamic_params();
-    const Teuchos::ParameterList& fsimono = fsidyn.sublist("MONOLITHIC SOLVER");
-    precondreusecount_ = fsimono.get<int>("PRECONDREUSE");
-  }
-
-  precondreusecount_ -= 1;
-
-  return true;
-}
-
-/*----------------------------------------------------------------------------*/
-/*----------------------------------------------------------------------------*/
 void FSI::BlockMonolithic::prepare_time_step_preconditioner()
 {
   const Teuchos::ParameterList& fsimono =
@@ -1187,7 +1156,8 @@ std::shared_ptr<::NOX::Epetra::LinearSystem> FSI::BlockMonolithic::create_linear
       solver->put_solver_params_to_sub_params("Inverse1", fsisolverparams,
           Global::Problem::instance()->solver_params_callback(),
           Teuchos::getIntegralValue<Core::IO::Verbositylevel>(
-              Global::Problem::instance()->io_params(), "VERBOSITY"));
+              Global::Problem::instance()->io_params(), "VERBOSITY"),
+          get_comm());
       structure_field()->discretization()->compute_null_space_if_necessary(
           solver->params().sublist("Inverse1"));
       Core::LinearSolver::Parameters::fix_null_space("Structure",
@@ -1198,7 +1168,8 @@ std::shared_ptr<::NOX::Epetra::LinearSystem> FSI::BlockMonolithic::create_linear
       solver->put_solver_params_to_sub_params("Inverse2", fsisolverparams,
           Global::Problem::instance()->solver_params_callback(),
           Teuchos::getIntegralValue<Core::IO::Verbositylevel>(
-              Global::Problem::instance()->io_params(), "VERBOSITY"));
+              Global::Problem::instance()->io_params(), "VERBOSITY"),
+          get_comm());
       fluid_field()->discretization()->compute_null_space_if_necessary(
           solver->params().sublist("Inverse2"));
       Core::LinearSolver::Parameters::fix_null_space("Fluid",
@@ -1209,7 +1180,8 @@ std::shared_ptr<::NOX::Epetra::LinearSystem> FSI::BlockMonolithic::create_linear
       solver->put_solver_params_to_sub_params("Inverse3", fsisolverparams,
           Global::Problem::instance()->solver_params_callback(),
           Teuchos::getIntegralValue<Core::IO::Verbositylevel>(
-              Global::Problem::instance()->io_params(), "VERBOSITY"));
+              Global::Problem::instance()->io_params(), "VERBOSITY"),
+          get_comm());
       const_cast<Core::FE::Discretization&>(*(ale_field()->discretization()))
           .compute_null_space_if_necessary(solver->params().sublist("Inverse3"));
       Core::LinearSolver::Parameters::fix_null_space("Ale",
@@ -1226,8 +1198,8 @@ std::shared_ptr<::NOX::Epetra::LinearSystem> FSI::BlockMonolithic::create_linear
     }
   }
 
-  linSys = std::make_shared<NOX::FSI::LinearSystem>(
-      printParams, lsParams, Core::Utils::shared_ptr_from_ref(*iJac), J, noxSoln, solver);
+  linSys = std::make_shared<NOX::FSI::LinearSystem>(printParams, lsParams,
+      Core::Utils::shared_ptr_from_ref(*iJac), system_matrix(), noxSoln, solver);
 
   return linSys;
 }

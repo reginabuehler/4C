@@ -16,7 +16,6 @@
 #include "4C_utils_enum.hpp"
 
 #include <Epetra_CrsMatrix.h>
-#include <Epetra_LinearProblem.h>
 #include <Epetra_Operator.h>
 #include <Epetra_RowMatrix.h>
 #include <Epetra_VbrMatrix.h>
@@ -33,11 +32,10 @@ NOX::Solid::LinearSystem::LinearSystem(Teuchos::ParameterList& printParams,
     const std::shared_ptr<::NOX::Epetra::Interface::Jacobian>& iJac,
     const std::shared_ptr<Epetra_Operator>& J, const ::NOX::Epetra::Vector& cloneVector,
     std::shared_ptr<Core::LinAlg::Solver> structure_solver,
-    const Teuchos::RCP<::NOX::Epetra::Scaling> s)
+    const std::shared_ptr<NOX::Nln::Scaling> s)
     : utils_(printParams),
       jacInterfacePtr_(iJac),
       jacType_(EpetraOperator),
-      precType_(EpetraOperator),
       jacPtr_(J),
       scaling_(s),
       conditionNumberEstimate_(0.0),
@@ -144,7 +142,7 @@ bool NOX::Solid::LinearSystem::applyJacobianInverse(
     Core::LinAlg::SolverParams solver_params;
     solver_params.refactor = true;
     solver_params.reset = callcount_ == 0;
-    structureSolver_->solve(J->epetra_operator(),
+    structureSolver_->solve(Core::Utils::shared_ptr_from_ref(*J),
         Core::Utils::shared_ptr_from_ref(result_view.underlying()), fres, solver_params);
     callcount_ += 1;
   }
@@ -172,30 +170,6 @@ bool NOX::Solid::LinearSystem::applyJacobianInverse(
   return true;
 }
 
-/*----------------------------------------------------------------------*
- *----------------------------------------------------------------------*/
-bool NOX::Solid::LinearSystem::applyRightPreconditioning(bool useTranspose,
-    Teuchos::ParameterList& params, const ::NOX::Epetra::Vector& input,
-    ::NOX::Epetra::Vector& result) const
-{
-  if (&result != &input) result = input;
-  return true;
-}
-
-
-/*----------------------------------------------------------------------*
- *----------------------------------------------------------------------*/
-Teuchos::RCP<::NOX::Epetra::Scaling> NOX::Solid::LinearSystem::getScaling() { return scaling_; }
-
-
-/*----------------------------------------------------------------------*
- *----------------------------------------------------------------------*/
-void NOX::Solid::LinearSystem::resetScaling(
-    const Teuchos::RCP<::NOX::Epetra::Scaling>& scalingObject)
-{
-  scaling_ = scalingObject;
-}
-
 
 /*----------------------------------------------------------------------*
  *----------------------------------------------------------------------*/
@@ -204,48 +178,6 @@ bool NOX::Solid::LinearSystem::computeJacobian(const ::NOX::Epetra::Vector& x)
   bool success = jacInterfacePtr_->computeJacobian(x.getEpetraVector(), *jacPtr_);
   return success;
 }
-
-
-/*----------------------------------------------------------------------*
- *----------------------------------------------------------------------*/
-bool NOX::Solid::LinearSystem::createPreconditioner(
-    const ::NOX::Epetra::Vector& x, Teuchos::ParameterList& p, bool recomputeGraph) const
-{
-  return false;
-}
-
-
-/*----------------------------------------------------------------------*
- *----------------------------------------------------------------------*/
-bool NOX::Solid::LinearSystem::destroyPreconditioner() const { return false; }
-
-
-/*----------------------------------------------------------------------*
- *----------------------------------------------------------------------*/
-bool NOX::Solid::LinearSystem::recomputePreconditioner(
-    const ::NOX::Epetra::Vector& x, Teuchos::ParameterList& linearSolverParams) const
-{
-  return false;
-}
-
-
-/*----------------------------------------------------------------------*
- *----------------------------------------------------------------------*/
-NOX::Solid::LinearSystem::PreconditionerReusePolicyType
-NOX::Solid::LinearSystem::getPreconditionerPolicy(bool advanceReuseCounter)
-{
-  return PRPT_REBUILD;
-}
-
-
-/*----------------------------------------------------------------------*
- *----------------------------------------------------------------------*/
-bool NOX::Solid::LinearSystem::isPreconditionerConstructed() const { return false; }
-
-
-/*----------------------------------------------------------------------*
- *----------------------------------------------------------------------*/
-bool NOX::Solid::LinearSystem::hasPreconditioner() const { return false; }
 
 
 /*----------------------------------------------------------------------*
@@ -261,41 +193,6 @@ Teuchos::RCP<const Epetra_Operator> NOX::Solid::LinearSystem::getJacobianOperato
 Teuchos::RCP<Epetra_Operator> NOX::Solid::LinearSystem::getJacobianOperator()
 {
   return Teuchos::rcpFromRef(*jacPtr_);
-}
-
-
-/*----------------------------------------------------------------------*
- *----------------------------------------------------------------------*/
-Teuchos::RCP<const Epetra_Operator> NOX::Solid::LinearSystem::getGeneratedPrecOperator() const
-{
-  return Teuchos::null;
-}
-
-
-/*----------------------------------------------------------------------*
- *----------------------------------------------------------------------*/
-Teuchos::RCP<Epetra_Operator> NOX::Solid::LinearSystem::getGeneratedPrecOperator()
-{
-  return Teuchos::null;
-}
-
-
-/*----------------------------------------------------------------------*
- *----------------------------------------------------------------------*/
-void NOX::Solid::LinearSystem::setJacobianOperatorForSolve(
-    const Teuchos::RCP<const Epetra_Operator>& solveJacOp)
-{
-  jacPtr_ = Core::Utils::shared_ptr_from_ref(*Teuchos::rcp_const_cast<Epetra_Operator>(solveJacOp));
-  jacType_ = get_operator_type(*solveJacOp);
-}
-
-
-/*----------------------------------------------------------------------*
- *----------------------------------------------------------------------*/
-void NOX::Solid::LinearSystem::setPrecOperatorForSolve(
-    const Teuchos::RCP<const Epetra_Operator>& solvePrecOp)
-{
-  throw_error("setPrecOperatorForSolve", "no preconditioner supported");
 }
 
 

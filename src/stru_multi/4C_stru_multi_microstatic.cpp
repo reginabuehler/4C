@@ -442,7 +442,7 @@ void MultiScale::MicroStatic::predict_tang_dis(const Core::LinAlg::Matrix<3, 3>*
   Core::LinAlg::SolverParams solver_params;
   solver_params.refactor = true;
   solver_params.reset = true;
-  solver_->solve(stiff_->epetra_operator(), disi_, fresn_, solver_params);
+  solver_->solve(stiff_, disi_, fresn_, solver_params);
   solver_->reset();
 
   // store norm of displacement increments
@@ -552,7 +552,7 @@ void MultiScale::MicroStatic::full_newton()
     }
     solver_params.refactor = true;
     solver_params.reset = numiter_ == 0;
-    solver_->solve(stiff_->epetra_operator(), disi_, fresn_, solver_params);
+    solver_->solve(stiff_, disi_, fresn_, solver_params);
     solver_->reset_tolerance();
 
     //---------------------------------- update mid configuration values
@@ -977,7 +977,7 @@ void MultiScale::MicroStatic::evaluate_micro_bc(
 
         const int lid = disp.get_map().lid(gid);
         if (lid < 0) FOUR_C_THROW("Global id {} not on this proc in system vector", gid);
-        (disp)[lid] = disp_prescribed[l];
+        (disp).get_values()[lid] = disp_prescribed[l];
       }
     }
   }
@@ -1144,7 +1144,7 @@ void MultiScale::MicroStatic::static_homogenization(Core::LinAlg::Matrix<6, 1>* 
         Core::LinAlg::SolverParams solver_params;
         solver_params.refactor = true;
         solver_params.reset = true;
-        solver.solve_with_multi_vector(stiff_->epetra_operator(), iterinc, rhs_, solver_params);
+        solver.solve_with_multi_vector(stiff_, iterinc, rhs_, solver_params);
         break;
       }
       case Core::LinearSolver::SolverType::superlu:
@@ -1156,7 +1156,7 @@ void MultiScale::MicroStatic::static_homogenization(Core::LinAlg::Matrix<6, 1>* 
           Core::LinAlg::SolverParams solver_params;
           solver_params.refactor = true;
           solver_params.reset = true;
-          solver.solve_with_multi_vector(stiff_->epetra_operator(),
+          solver.solve_with_multi_vector(stiff_,
               Core::Utils::shared_ptr_from_ref((*iterinc)(i).as_multi_vector()),
               Core::Utils::shared_ptr_from_ref((*rhs_)(i).as_multi_vector()), solver_params);
         }
@@ -1201,7 +1201,7 @@ void MultiScale::MicroStatic::static_homogenization(Core::LinAlg::Matrix<6, 1>* 
     {
       // write as a 9x9 matrix
       for (int i = 0; i < 9; i++)
-        for (int j = 0; j < 9; j++) ((cmatpf(j)))[i] = sum[i * 9 + j];
+        for (int j = 0; j < 9; j++) ((cmatpf(j))).get_values()[i] = sum[i * 9 + j];
 
       // scale with inverse of RVE volume
       cmatpf.Scale(1.0 / initial_volume_);
@@ -1225,7 +1225,7 @@ void MultiScale::MicroStatic::static_homogenization(Core::LinAlg::Matrix<6, 1>* 
 
 void MultiScale::stop_np_multiscale()
 {
-  MPI_Comm subcomm = Global::Problem::instance(0)->get_communicators()->sub_comm();
+  MPI_Comm subcomm = Global::Problem::instance(0)->get_communicators().sub_comm();
   int task[2] = {
       static_cast<int>(MultiScale::MicromaterialNestedParallelismAction::stop_multiscale), -1};
   Core::Communication::broadcast(task, 2, 0, subcomm);

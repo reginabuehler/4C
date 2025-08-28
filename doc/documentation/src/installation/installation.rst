@@ -284,7 +284,7 @@ add a JSON schema file, which is automatically created during the build process,
 3. Give it a descriptive name.
 4. Select the Schema file ``4C_schema.json`` from your local build directory.
 5. Select Schema version *JSON Schema v4*.
-6. Add the file name pattern ``\*.4C.yaml``, to which this schema is applied.
+6. Add the file name pattern ``*.4C.yaml``, to which this schema is applied.
 
 Note that this Schema is only valid for the current project, that is, only files in this directory tree are recognized.
 
@@ -547,3 +547,25 @@ Documentation (for the documentation to be generated, you have to set the respec
 .. note::
 
     When omitting the custom target specifier in the build command, the default specifier 4C is used.
+
+
+Installing |FOURC| for use in other projects
+------------------------------------------------
+
+|FOURC| can be installed the same way as any typical CMake project. In your CMake preset, set the ``CMAKE_INSTALL_PREFIX`` to the desired location.
+Then, run the install command:
+
+::
+
+    ninja install
+
+This will install |FOURC| in the specified location. You can then use the installed |FOURC| in another CMake project by finding it with the `find_package` command:
+
+.. code-block:: cmake
+
+    find_package(4C REQUIRED CONFIG HINTS <path-to-4C-installation>)
+
+    # Link against the 4C library which was found by find_package.
+    # This pulls in all the necessary dependencies and headers.
+    target_link_libraries(<your-target> PRIVATE 4C::lib4C)
+

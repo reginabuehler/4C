@@ -55,6 +55,7 @@
 #include "4C_inpar_wear.hpp"
 #include "4C_inpar_xfem.hpp"
 #include "4C_io_exodus.hpp"
+#include "4C_io_gridgenerator.hpp"
 #include "4C_io_input_file_utils.hpp"
 #include "4C_io_input_spec_builders.hpp"
 #include "4C_io_pstream.hpp"
@@ -146,7 +147,10 @@ std::map<std::string, Core::IO::InputSpec> Global::valid_parameters()
                   .default_value = -1})},
       {.required = false});
 
-  const auto add_geometry_section = [](auto& specs, const std::string& field_identifier)
+  const Core::Elements::ElementDefinition element_definition;
+  auto all_possible_elements_spec = element_definition.element_data_spec();
+
+  const auto add_geometry_section = [&](auto& specs, const std::string& field_identifier)
   {
     specs[field_identifier + " GEOMETRY"] = group(field_identifier + " GEOMETRY",
         {
@@ -154,23 +158,30 @@ std::map<std::string, Core::IO::InputSpec> Global::valid_parameters()
                 "FILE", {.description = "Path to the exodus geometry file. Either absolute or "
                                         "relative to the input file."}),
             parameter<Core::IO::Exodus::VerbosityLevel>("SHOW_INFO",
-                {.description =
-                        "Print element, node and set info for the exodus file after reading.",
-                    .default_value = Core::IO::Exodus::VerbosityLevel::none}),
+                {
+                    .description = "Choose verbosity of reporting element, node and set info for "
+                                   "the exodus file after reading.",
+                    .enum_value_description = Core::IO::Exodus::describe,
+                    .default_value = Core::IO::Exodus::VerbosityLevel::none,
+                }),
 
             // Once we support more formats, we should add a "TYPE" parameter for the file format.
             list("ELEMENT_BLOCKS",
                 all_of({
                     parameter<int>(
                         "ID", {.description = "ID of the element block in the exodus file."}),
-                    parameter<std::string>("ELEMENT_NAME",
-                        {.description =
-                                "The name of the element that should be assigned to the block."}),
-                    parameter<std::string>("ELEMENT_DATA",
-                        {.description = "A dat-style string of parameters for the element."}),
+                    all_possible_elements_spec,
                 })),
         },
         {.description = "Settings related to the geometry of discretization " + field_identifier,
+            .required = false});
+  };
+
+  const auto add_domain_section = [spec = Core::IO::GridGenerator::RectangularCuboidInputs::spec()](
+                                      auto& specs, const std::string& field_identifier)
+  {
+    specs[field_identifier + " DOMAIN"] = group(field_identifier + " DOMAIN", {spec},
+        {.description = "Generate a mesh for discretization " + field_identifier,
             .required = false});
   };
 
@@ -179,6 +190,7 @@ std::map<std::string, Core::IO::InputSpec> Global::valid_parameters()
   for (const auto& field : known_fields)
   {
     add_geometry_section(specs, field);
+    add_domain_section(specs, field);
   }
 
   specs["fields"] = list("fields",
@@ -215,7 +227,7 @@ std::map<std::string, Core::IO::InputSpec> Global::valid_parameters()
   Inpar::IORuntimeOutput::Solid::set_valid_parameters(specs);
   Beam::IORuntimeOutput::set_valid_parameters(specs);
   BeamContact::set_valid_parameters(specs);
-  BeamPotential::set_valid_parameters(specs);
+  BeamInteraction::Potential::set_valid_parameters(specs);
   Inpar::BeamInteraction::set_valid_parameters(specs);
   Inpar::RveMpc::set_valid_parameters(specs);
   BrownianDynamics::set_valid_parameters(specs);

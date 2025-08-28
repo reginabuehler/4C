@@ -43,12 +43,12 @@ Core::Rebalance::rebalance_node_maps(const Core::LinAlg::Graph& initialGraph,
       initialNodeWeights, initialEdgeWeights, initialNodeCoordinates);
 
   // extract repartitioned maps
-  std::shared_ptr<Core::LinAlg::Map> rownodes = std::make_shared<Core::LinAlg::Map>(-1,
-      balanced_graph->row_map().num_my_elements(), balanced_graph->row_map().my_global_elements(),
-      0, Core::Communication::unpack_epetra_comm(initialGraph.get_comm()));
-  std::shared_ptr<Core::LinAlg::Map> colnodes = std::make_shared<Core::LinAlg::Map>(-1,
-      balanced_graph->col_map().num_my_elements(), balanced_graph->col_map().my_global_elements(),
-      0, Core::Communication::unpack_epetra_comm(initialGraph.get_comm()));
+  std::shared_ptr<Core::LinAlg::Map> rownodes =
+      std::make_shared<Core::LinAlg::Map>(-1, balanced_graph->row_map().num_my_elements(),
+          balanced_graph->row_map().my_global_elements(), 0, initialGraph.get_comm());
+  std::shared_ptr<Core::LinAlg::Map> colnodes =
+      std::make_shared<Core::LinAlg::Map>(-1, balanced_graph->col_map().num_my_elements(),
+          balanced_graph->col_map().my_global_elements(), 0, initialGraph.get_comm());
 
   return {rownodes, colnodes};
 }
@@ -121,8 +121,7 @@ Core::Rebalance::build_weights(const Core::FE::Discretization& dis)
 {
   const Core::LinAlg::Map* noderowmap = dis.node_row_map();
 
-  auto crs_ge_weights =
-      std::make_shared<Core::LinAlg::SparseMatrix>(noderowmap->get_epetra_map(), 15);
+  auto crs_ge_weights = std::make_shared<Core::LinAlg::SparseMatrix>(*noderowmap, 15);
   std::shared_ptr<Core::LinAlg::Vector<double>> vweights =
       Core::LinAlg::create_vector(*noderowmap, true);
 
@@ -147,7 +146,7 @@ Core::Rebalance::build_weights(const Core::FE::Discretization& dis)
     // evaluate elements to get their evaluation cost
     ele->nodal_connectivity(edgeweigths_ele, nodeweights_ele);
 
-    Core::LinAlg::assemble(*crs_ge_weights->epetra_matrix(), edgeweigths_ele, lm, lmrowowner, lm);
+    Core::LinAlg::assemble(*crs_ge_weights, edgeweigths_ele, lm, lmrowowner, lm);
     Core::LinAlg::assemble(*vweights, nodeweights_ele, lm, lmrowowner);
   }
 
@@ -371,7 +370,7 @@ std::shared_ptr<const Core::LinAlg::Graph> Core::Rebalance::build_monolithic_nod
         element->id(), element_node_ids.size(), element_node_ids.data());
     if (err != 0) FOUR_C_THROW("Core::LinAlg::Graph::InsertGlobalIndices returned {}", err);
   }
-  element_connectivity.fill_complete();
+  element_connectivity.fill_complete(*dis.node_row_map(), *dis.element_row_map());
 
   // 3. Get the connectivity information of each element that collides with an element on this rank
   std::set<int> my_colliding_primitives;

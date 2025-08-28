@@ -69,6 +69,24 @@ set(FOUR_C_VERSION_PATCH ${CMAKE_MATCH_3})
 
 message(STATUS "Configuring 4C version ${FOUR_C_VERSION_FULL}")
 
+# The input version is used to determine the compatibility of input files.
+# Syntax: major.minor.patch
+file(
+  STRINGS "${PROJECT_SOURCE_DIR}/input_version/INPUT_VERSION" FOUR_C_INPUT_VERSION_FULL
+  LIMIT_COUNT 1
+  )
+string(REGEX MATCH "([0-9]+)\\.([0-9]+)\\.([0-9]+)" _dummy ${FOUR_C_INPUT_VERSION_FULL})
+if(NOT _dummy)
+  message(
+    FATAL_ERROR
+      "The input version string ${FOUR_C_INPUT_VERSION_FULL} does not match the expected format MAJOR.MINOR.PATCH"
+    )
+endif()
+set(FOUR_C_INPUT_VERSION_MAJOR ${CMAKE_MATCH_1})
+set(FOUR_C_INPUT_VERSION_MINOR ${CMAKE_MATCH_2})
+set(FOUR_C_INPUT_VERSION_PATCH ${CMAKE_MATCH_3})
+message(STATUS "The 4C input version is ${FOUR_C_INPUT_VERSION_FULL}")
+
 # Assert a valid build configuration
 set(_allowed_build_types "DEBUG" "RELEASE" "RELWITHDEBINFO")
 if(NOT CMAKE_BUILD_TYPE)
@@ -116,20 +134,22 @@ include(cmake/setup_global_options.cmake)
 # Collect all external dependencies in a helper target
 add_library(four_c_all_enabled_external_dependencies INTERFACE)
 
-four_c_configure_dependency(HDF5 DEFAULT ON)
-four_c_configure_dependency(MPI DEFAULT ON)
-four_c_configure_dependency(Qhull DEFAULT ON)
-four_c_configure_dependency(Trilinos DEFAULT ON)
+four_c_configure_dependency(HDF5 REQUIRED)
+four_c_configure_dependency(MPI REQUIRED)
+four_c_configure_dependency(Qhull REQUIRED)
+four_c_configure_dependency(Trilinos REQUIRED)
 four_c_configure_dependency(deal.II DEFAULT OFF)
-four_c_configure_dependency(Boost DEFAULT ON)
+four_c_configure_dependency(Boost REQUIRED)
 four_c_configure_dependency(ArborX DEFAULT OFF)
-four_c_configure_dependency(FFTW DEFAULT ON)
-four_c_configure_dependency(CLN DEFAULT ON)
+four_c_configure_dependency(FFTW REQUIRED)
+four_c_configure_dependency(CLN REQUIRED)
 four_c_configure_dependency(MIRCO DEFAULT OFF)
 four_c_configure_dependency(Backtrace DEFAULT OFF)
-four_c_configure_dependency(ryml DEFAULT ON)
-four_c_configure_dependency(magic_enum DEFAULT ON)
-four_c_configure_dependency(ZLIB DEFAULT ON)
+four_c_configure_dependency(ryml REQUIRED)
+four_c_configure_dependency(magic_enum REQUIRED)
+four_c_configure_dependency(ZLIB REQUIRED)
+four_c_configure_dependency(Python DEFAULT ON) # not required but useful for most developers
+four_c_configure_dependency(pybind11 DEFAULT OFF)
 
 ### end of configuration and feature detection
 
@@ -182,9 +202,6 @@ if(NOT FOUR_C_BUILD_SHARED_LIBS)
     FILE_SET HEADERS
     )
 endif()
-
-# Set up Python build/test venv
-include(cmake/python/set_up_python.cmake)
 
 # Read in the source directory which defines all modules
 add_subdirectory(src)

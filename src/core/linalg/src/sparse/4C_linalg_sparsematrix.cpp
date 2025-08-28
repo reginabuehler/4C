@@ -117,28 +117,6 @@ Core::LinAlg::SparseMatrix::SparseMatrix(const Core::LinAlg::Map& rowmap,
 }
 
 
-Core::LinAlg::SparseMatrix::SparseMatrix(const Epetra_Map& rowmap, std::vector<int>& numentries,
-    bool explicitdirichlet, bool savegraph, MatrixType matrixtype)
-    : graph_(nullptr),
-      dbcmaps_(nullptr),
-      explicitdirichlet_(explicitdirichlet),
-      savegraph_(savegraph),
-      matrixtype_(matrixtype)
-{
-  if (!rowmap.UniqueGIDs()) FOUR_C_THROW("Row map is not unique");
-
-  if ((int)(numentries.size()) != rowmap.NumMyElements())
-    FOUR_C_THROW("estimate for non zero entries per row does not match the size of row map");
-
-  if (matrixtype_ == CRS_MATRIX)
-    sysmat_ = std::make_shared<Epetra_CrsMatrix>(::Copy, rowmap, numentries.data(), false);
-  else if (matrixtype_ == FE_MATRIX)
-    sysmat_ = std::make_shared<Epetra_FECrsMatrix>(::Copy, rowmap, numentries.data(), false);
-  else
-    FOUR_C_THROW("matrix type is not correct");
-}
-
-
 /*----------------------------------------------------------------------*
  *----------------------------------------------------------------------*/
 Core::LinAlg::SparseMatrix::SparseMatrix(std::shared_ptr<Epetra_CrsMatrix> matrix,
@@ -836,9 +814,8 @@ void Core::LinAlg::SparseMatrix::fe_assemble(double val, int rgid, int cgid)
 
 
 /*----------------------------------------------------------------------*
- |  fill_complete a matrix  (public)                          mwgee 12/06|
  *----------------------------------------------------------------------*/
-void Core::LinAlg::SparseMatrix::complete(bool enforce_complete)
+void Core::LinAlg::SparseMatrix::complete(OptionsMatrixComplete options_matrix_complete)
 {
   TEUCHOS_FUNC_TIME_MONITOR("Core::LinAlg::SparseMatrix::Complete");
 
@@ -850,9 +827,9 @@ void Core::LinAlg::SparseMatrix::complete(bool enforce_complete)
     if (err) FOUR_C_THROW("Epetra_FECrsMatrix::GlobalAssemble() returned err={}", err);
   }
 
-  if (sysmat_->Filled() and not enforce_complete) return;
+  if (sysmat_->Filled() and not options_matrix_complete.enforce_complete) return;
 
-  int err = sysmat_->FillComplete(true);
+  int err = sysmat_->FillComplete(options_matrix_complete.optimize_data_storage);
   if (err) FOUR_C_THROW("Epetra_CrsMatrix::fill_complete(domain,range) returned err={}", err);
 
   // keep mask for further use
@@ -864,10 +841,9 @@ void Core::LinAlg::SparseMatrix::complete(bool enforce_complete)
 
 
 /*----------------------------------------------------------------------*
- |  fill_complete a matrix  (public)                          mwgee 01/08|
  *----------------------------------------------------------------------*/
-void Core::LinAlg::SparseMatrix::complete(
-    const Core::LinAlg::Map& domainmap, const Core::LinAlg::Map& rangemap, bool enforce_complete)
+void Core::LinAlg::SparseMatrix::complete(const Core::LinAlg::Map& domainmap,
+    const Core::LinAlg::Map& rangemap, OptionsMatrixComplete options_matrix_complete)
 {
   TEUCHOS_FUNC_TIME_MONITOR("Core::LinAlg::SparseMatrix::Complete(domain,range)");
 
@@ -880,13 +856,14 @@ void Core::LinAlg::SparseMatrix::complete(
     if (err) FOUR_C_THROW("Epetra_FECrsMatrix::GlobalAssemble() returned err={}", err);
   }
 
-  if (sysmat_->Filled() and not enforce_complete) return;
+  if (sysmat_->Filled() and not options_matrix_complete.enforce_complete) return;
 
   int err = 1;
-  if (enforce_complete and sysmat_->Filled())
+  if (options_matrix_complete.enforce_complete and sysmat_->Filled())
     err = sysmat_->ExpertStaticFillComplete(domainmap.get_epetra_map(), rangemap.get_epetra_map());
   else
-    err = sysmat_->FillComplete(domainmap.get_epetra_map(), rangemap.get_epetra_map(), true);
+    err = sysmat_->FillComplete(domainmap.get_epetra_map(), rangemap.get_epetra_map(),
+        options_matrix_complete.optimize_data_storage);
 
   if (err) FOUR_C_THROW("Epetra_CrsMatrix::fill_complete(domain,range) returned err={}", err);
 
@@ -895,24 +872,6 @@ void Core::LinAlg::SparseMatrix::complete(
   {
     graph_ = std::make_shared<Core::LinAlg::Graph>(sysmat_->Graph());
   }
-}
-
-void Core::LinAlg::SparseMatrix::complete(
-    const Epetra_Map& domainmap, const Epetra_Map& rangemap, bool enforce_complete)
-{
-  this->complete(Map(domainmap), Map(rangemap), enforce_complete);
-}
-
-void Core::LinAlg::SparseMatrix::complete(
-    const Map& domainmap, const Epetra_Map& rangemap, bool enforce_complete)
-{
-  this->complete(domainmap, Map(rangemap), enforce_complete);
-}
-
-void Core::LinAlg::SparseMatrix::complete(
-    const Epetra_Map& domainmap, const Map& rangemap, bool enforce_complete)
-{
-  this->complete(Map(domainmap), rangemap, enforce_complete);
 }
 
 /*----------------------------------------------------------------------*
@@ -1300,11 +1259,11 @@ void Core::LinAlg::SparseMatrix::apply_dirichlet_with_trafo(const Core::LinAlg::
         {
           // extract values of trafo at the inclined dbc dof
 #ifdef FOUR_C_ENABLE_ASSERTIONS
-          int err = trafo.epetra_matrix()->ExtractGlobalRowCopy(
+          int err = trafo.extract_global_row_copy(
               row, trafomaxnumentries, trafonumentries, trafovalues.data(), trafoindices.data());
           if (err < 0) FOUR_C_THROW("Epetra_CrsMatrix::ExtractGlobalRowCopy returned err={}", err);
 #else
-          trafo.epetra_matrix()->ExtractGlobalRowCopy(
+          trafo.extract_global_row_copy(
               row, trafomaxnumentries, trafonumentries, trafovalues.data(), trafoindices.data());
 #endif
         }
@@ -1369,11 +1328,11 @@ void Core::LinAlg::SparseMatrix::apply_dirichlet_with_trafo(const Core::LinAlg::
         if (diagonalblock)
         {
 #ifdef FOUR_C_ENABLE_ASSERTIONS
-          err = trafo.epetra_matrix()->ExtractMyRowCopy(
+          err = trafo.extract_my_row_copy(
               i, trafomaxnumentries, trafonumentries, trafovalues.data(), trafoindices.data());
           if (err < 0) FOUR_C_THROW("Epetra_CrsMatrix::ExtractGlobalRowCopy returned err={}", err);
 #else
-          trafo.epetra_matrix()->ExtractMyRowCopy(
+          trafo.extract_my_row_copy(
               i, trafomaxnumentries, trafonumentries, trafovalues.data(), trafoindices.data());
 #endif
 
@@ -1538,6 +1497,12 @@ const Epetra_Map& Core::LinAlg::SparseMatrix::OperatorRangeMap() const
  *----------------------------------------------------------------------*/
 int Core::LinAlg::SparseMatrix::max_num_entries() const { return sysmat_->MaxNumEntries(); }
 
+/*----------------------------------------------------------------------*
+ *----------------------------------------------------------------------*/
+int Core::LinAlg::SparseMatrix::global_max_num_entries() const
+{
+  return sysmat_->GlobalMaxNumEntries();
+}
 
 /*----------------------------------------------------------------------*
  *----------------------------------------------------------------------*/
@@ -1690,6 +1655,14 @@ int Core::LinAlg::SparseMatrix::replace_my_values(
 
 /*----------------------------------------------------------------------*
  *----------------------------------------------------------------------*/
+int Core::LinAlg::SparseMatrix::replace_global_values(
+    int global_row, int num_entries, const double* values, const int* indices) const
+{
+  return sysmat_->ReplaceGlobalValues(global_row, num_entries, values, indices);
+}
+
+/*----------------------------------------------------------------------*
+ *----------------------------------------------------------------------*/
 int Core::LinAlg::SparseMatrix::insert_global_values(
     int global_row, int num_entries, const double* values, const int* indices) const
 {
@@ -1717,7 +1690,7 @@ void Core::LinAlg::SparseMatrix::add(const Core::LinAlg::SparseOperator& A, cons
 void Core::LinAlg::SparseMatrix::add(const Core::LinAlg::SparseMatrix& A, const bool transposeA,
     const double scalarA, const double scalarB)
 {
-  Core::LinAlg::add(*A.epetra_matrix(), transposeA, scalarA, *this, scalarB);
+  Core::LinAlg::add(A, transposeA, scalarA, *this, scalarB);
 }
 
 /*----------------------------------------------------------------------*
@@ -1725,8 +1698,7 @@ void Core::LinAlg::SparseMatrix::add(const Core::LinAlg::SparseMatrix& A, const 
 void Core::LinAlg::SparseMatrix::add_other(Core::LinAlg::SparseMatrix& B, const bool transposeA,
     const double scalarA, const double scalarB) const
 {
-  // B.add(*this, transposeA, scalarA, scalarB);
-  Core::LinAlg::add(*sysmat_, transposeA, scalarA, B, scalarB);
+  B.add(*this, transposeA, scalarA, scalarB);
 }
 
 /*----------------------------------------------------------------------*

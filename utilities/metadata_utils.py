@@ -8,8 +8,9 @@
 """Utilities to handle 4C metadata files."""
 from dataclasses import dataclass, field
 from pathlib import Path
-from ruamel.yaml import YAML
 from typing import ClassVar
+
+from ruamel.yaml import YAML
 
 
 # In order to allow None as defaults
@@ -111,6 +112,8 @@ class Vector(Primitive):
         # If dict create object
         if isinstance(self.value_type, dict):
             self.value_type = _metadata_object_from_dict(self.value_type)
+        if self.validator is not None and not isinstance(self.validator, Validator):
+            self.validator = validator_from_dict(self.validator)
 
 
 @dataclass
@@ -127,6 +130,20 @@ class Map(Primitive):
 
 
 @dataclass
+class Tuple(Primitive):
+    """Tuple parameter."""
+
+    size: int = None
+    value_types: list = field(default_factory=list)
+
+    def __post_init__(self):
+        # If dict create object
+        for i, vt in enumerate(self.value_types):
+            if isinstance(vt, dict):
+                self.value_types[i] = _metadata_object_from_dict(vt)
+
+
+@dataclass
 class Enum(Primitive):
     """Enum parameter."""
 
@@ -134,9 +151,16 @@ class Enum(Primitive):
 
     def __post_init__(self):
         super().__post_init__()
+        combined_description = ""
         for i, choice in enumerate(self.choices):
             if isinstance(choice, dict):
                 self.choices[i] = choice["name"]
+                if d := choice.get("description", None):
+                    combined_description += f"{choice['name']}: {d}\n"
+        if self.description is not NOTSET:
+            self.description += "\n" + combined_description
+        elif combined_description != "":
+            self.description = combined_description
 
 
 @dataclass
@@ -373,6 +397,8 @@ def _metadata_object_from_dict(metadata_dict):
             cls = Vector
         case "map":
             cls = Map
+        case "tuple":
+            cls = Tuple
         # Collections
         case "selection":
             cls = Selection
@@ -416,30 +442,30 @@ def metadata_object_from_file(metadata_4C_path):
         metadata_description = f"Schema for 4C\nCommit hash: {metadata['metadata']['commit_hash']}\nVersion: {metadata['metadata']['version']}"
 
         # Legacy section
-        sections = metadata["sections"]
-        legacy_sections = [
-            {
-                "name": name,
-                "description": name + " [legacy section] ",
-                "type": "vector",
-                "value_type": {"type": "string"},
-            }
-            for name in metadata["legacy_string_sections"]
-        ]
-
-        # Combine sections with legacy sections
-        all_of = All_Of(
-            description=metadata_description,
-            specs=sections + legacy_sections,
-            name="Sections",
+        sections = All_Of(**metadata["sections"])
+        legacy_sections = All_Of(
+            specs=[
+                {
+                    "name": name,
+                    "description": name + " [legacy section] ",
+                    "type": "vector",
+                    "value_type": {"type": "string"},
+                }
+                for name in metadata["legacy_string_sections"]
+            ]
         )
+
+        sections.specs.extend(legacy_sections.specs)
+        sections.description = metadata_description
+        sections.name = "Sections"
+
     except Exception as exception:
         raise ValueError(
             "Could not read the 4C metadata file.\nThis generally indicates that input parameters"
             " were added or modified in a non-conforming way."
         ) from exception
 
-    return all_of, description_section_name, metadata["metadata"]
+    return sections, description_section_name, metadata["metadata"]
 
 
 @dataclass
@@ -462,6 +488,17 @@ class RangeValidator(Validator):
     maximum_exclusive: bool
 
 
+@dataclass
+class PatternValidator(Validator):
+    allowed_types: ClassVar[tuple] = ("string",)
+    pattern: str
+
+
+@dataclass
+class AllElementsValidator(Validator):
+    inner_validator: object
+
+
 def validator_from_dict(validator_dict):
     if len(validator_dict) > 1:
         raise ValueError(
@@ -472,6 +509,10 @@ def validator_from_dict(validator_dict):
 
     match validator_type:
         case "range":
-            validator_class = RangeValidator
-
-    return validator_class(**validator_settings)
+            return RangeValidator(**validator_settings)
+        case "all_elements":
+            return AllElementsValidator(validator_from_dict(validator_settings))
+        case "pattern":
+            return PatternValidator(**validator_settings)
+        case _:
+            raise ValueError("Validator '{}' not known.".format(validator_type))

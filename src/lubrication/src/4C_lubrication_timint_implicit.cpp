@@ -596,7 +596,7 @@ void Lubrication::TimIntImpl::add_cavitation_penalty()
 
     const int gid = dof_row_map()->gid(i);
     sysmat_->assemble(-penalty_param, gid, gid);
-    residual_->operator[](i) += penalty_param * pressure;
+    residual_->get_values()[i] += penalty_param * pressure;
   }
 }
 
@@ -737,7 +737,7 @@ void Lubrication::TimIntImpl::nonlinear_solve()
       // strategy_->Solve(solver_,sysmat_,increment_,residual_,prenp_,iternum_,projector_);
       solver_params.refactor = true;
       solver_params.reset = true;
-      solver_->solve(sysmat_->epetra_operator(), increment_, residual_, solver_params);
+      solver_->solve(sysmat_, increment_, residual_, solver_params);
 
       solver_->reset_tolerance();
 
@@ -1007,7 +1007,7 @@ void Lubrication::TimIntImpl::output_state()
     {
       Core::Nodes::Node* node = discret_->l_row_node(inode);
       for (int idim = 0; idim < nsd_; ++idim)
-        (dispnp_multi)(idim)[discret_->node_row_map()->lid(node->id())] =
+        (dispnp_multi)(idim).get_values()[discret_->node_row_map()->lid(node->id())] =
             (*dispnp)[dispnp->get_map().lid(discret_->dof(nds_disp_, node, idim))];
     }
 

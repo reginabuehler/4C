@@ -211,7 +211,7 @@ int Solid::TimIntCentrDiff::integrate_step()
       // in TimInt::determine_mass_damp_consist_accel
       Core::LinAlg::SolverParams solver_params;
       solver_params.reset = true;
-      solver_->solve(mass_->epetra_operator(), accn_, frimpn_, solver_params);
+      solver_->solve(mass_, accn_, frimpn_, solver_params);
     }
 
     // direct inversion based on lumped mass matrix
@@ -222,7 +222,7 @@ int Solid::TimIntCentrDiff::integrate_step()
       std::shared_ptr<Core::LinAlg::Vector<double>> diagonal =
           Core::LinAlg::create_vector(*dof_row_map_view(), true);
       int error = massmatrix->extract_diagonal_copy(*diagonal);
-      if (error != 0) FOUR_C_THROW("ERROR: ExtractDiagonalCopy went wrong");
+      if (error != 0) FOUR_C_THROW("extract_diagonal_copy failed with error code {}", error);
       accn_->reciprocal_multiply(1.0, *diagonal, *frimpn_, 0.0);
     }
   }

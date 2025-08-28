@@ -591,17 +591,17 @@ void FS3I::BiofilmFSI::inner_timeloop()
 
       if (avgrowth)
       {
-        (*((normtempinflux_.get_ref_of_epetra_vector())(0)))[lnodeid] += tempflux;
-        (*((normtemptraction_.get_ref_of_epetra_vector())(0)))[lnodeid] += abs(tempnormtrac);
-        (*((tangtemptractionone_.get_ref_of_epetra_vector())(0)))[lnodeid] += abs(temptangtracone);
-        (*((tangtemptractiontwo_.get_ref_of_epetra_vector())(0)))[lnodeid] += abs(temptangtractwo);
+        normtempinflux_.get_values()[lnodeid] += tempflux;
+        normtemptraction_.get_values()[lnodeid] += abs(tempnormtrac);
+        tangtemptractionone_.get_values()[lnodeid] += abs(temptangtracone);
+        tangtemptractiontwo_.get_values()[lnodeid] += abs(temptangtractwo);
       }
       else
       {
-        (*((norminflux_->get_ref_of_epetra_vector())(0)))[lnodeid] = tempflux;
-        (*((normtraction_->get_ref_of_epetra_vector())(0)))[lnodeid] = abs(tempnormtrac);
-        (*((tangtractionone_->get_ref_of_epetra_vector())(0)))[lnodeid] = abs(temptangtracone);
-        (*((tangtractiontwo_->get_ref_of_epetra_vector())(0)))[lnodeid] = abs(temptangtractwo);
+        (*norminflux_).get_values()[lnodeid] = tempflux;
+        (*normtraction_).get_values()[lnodeid] = abs(tempnormtrac);
+        (*tangtractionone_).get_values()[lnodeid] = abs(temptangtracone);
+        (*tangtractiontwo_).get_values()[lnodeid] = abs(temptangtractwo);
       }
     }
   }
@@ -621,15 +621,10 @@ void FS3I::BiofilmFSI::inner_timeloop()
       int gnodeid = condnodemap->gid(i);
       int lnodeid = strudis->node_row_map()->lid(gnodeid);
 
-      // Fix this.
-      (*((norminflux_->get_ref_of_epetra_vector())(0)))[lnodeid] =
-          (*((normtempinflux_.get_ref_of_epetra_vector())(0)))[lnodeid] / step_fsi_;
-      (*((normtraction_->get_ref_of_epetra_vector())(0)))[lnodeid] =
-          (*((normtemptraction_.get_ref_of_epetra_vector())(0)))[lnodeid] / step_fsi_;
-      (*((tangtractionone_->get_ref_of_epetra_vector())(0)))[lnodeid] =
-          (*((tangtemptractionone_.get_ref_of_epetra_vector())(0)))[lnodeid] / step_fsi_;
-      (*((tangtractiontwo_->get_ref_of_epetra_vector())(0)))[lnodeid] =
-          (*((tangtemptractiontwo_.get_ref_of_epetra_vector())(0)))[lnodeid] / step_fsi_;
+      (*norminflux_).get_values()[lnodeid] = normtempinflux_[lnodeid] / step_fsi_;
+      (*normtraction_).get_values()[lnodeid] = normtemptraction_[lnodeid] / step_fsi_;
+      (*tangtractionone_).get_values()[lnodeid] = tangtemptractionone_[lnodeid] / step_fsi_;
+      (*tangtractiontwo_).get_values()[lnodeid] = tangtemptractiontwo_[lnodeid] / step_fsi_;
     }
   }
 
@@ -690,10 +685,10 @@ void FS3I::BiofilmFSI::compute_interface_vectors(Core::LinAlg::Vector<double>& i
     }
     double unitnormalabsval = sqrt(temp);
     int lnodeid = strudis->node_row_map()->lid(nodegid);
-    double influx = (*norminflux_)[lnodeid];
-    double normforces = (*normtraction_)[lnodeid];
-    double tangoneforce = (*tangtractionone_)[lnodeid];
-    double tangtwoforce = (*tangtractiontwo_)[lnodeid];
+    double influx = (*norminflux_).get_values()[lnodeid];
+    double normforces = (*normtraction_).get_values()[lnodeid];
+    double tangoneforce = (*tangtractionone_).get_values()[lnodeid];
+    double tangtwoforce = (*tangtractiontwo_).get_values()[lnodeid];
 
     // compute average unit nodal normal and "interface velocity"
     std::vector<double> Values(numdim, 0);

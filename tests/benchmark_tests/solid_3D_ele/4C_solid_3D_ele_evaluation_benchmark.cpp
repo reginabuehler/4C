@@ -102,7 +102,7 @@ namespace
       Discret::Elements::ElementTechnology ele_tech, Inpar::Solid::KinemType kinem_type)
   {
     auto dis = std::make_unique<Core::FE::Discretization>("solid",
-        Global::Problem::instance()->get_communicators()->global_comm(), Core::FE::dim<celltype>);
+        Global::Problem::instance()->get_communicators().global_comm(), Core::FE::dim<celltype>);
 
     add_nodes_to_discretization<celltype>(*dis);
     dis->add_element(make_solid_element<celltype>(ele_tech, kinem_type));
@@ -136,8 +136,8 @@ namespace
     // set an arbitrary state
     for (int i = 0; i < displacement->local_length(); ++i)
     {
-      (*displacement)[i] = 0.1 * std::sin(4321.0 * i);
-      (*residual_displacements)[i] = 0.0001 * std::cos(1234.0 * i);
+      (*displacement).get_values()[i] = 0.1 * std::sin(4321.0 * i);
+      (*residual_displacements).get_values()[i] = 0.0001 * std::cos(1234.0 * i);
     }
 
     dis.set_state("displacement", *displacement);

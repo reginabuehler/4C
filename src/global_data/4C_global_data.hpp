@@ -200,10 +200,10 @@ namespace Global
     /// @name Communicators and their parallel groups
 
     /// set communicators
-    void set_communicators(std::shared_ptr<Core::Communication::Communicators> communicators);
+    void set_communicators(Core::Communication::Communicators communicators);
 
     /// return communicators
-    std::shared_ptr<Core::Communication::Communicators> get_communicators() const;
+    Core::Communication::Communicators& get_communicators() const;
 
     //@}
 
@@ -397,10 +397,7 @@ namespace Global
     {
       return parameters_->sublist("BEAM CONTACT");
     }
-    const Teuchos::ParameterList& beam_potential_params() const
-    {
-      return parameters_->sublist("BEAM POTENTIAL");
-    }
+    const Teuchos::ParameterList& parameters() const { return *parameters_; }
     const Teuchos::ParameterList& semi_smooth_plast_params() const
     {
       return parameters_->sublist("SEMI-SMOOTH PLASTICITY");
@@ -573,7 +570,7 @@ namespace Global
     std::map<std::pair<std::string, std::string>, std::map<int, int>> clonefieldmatmap_;
 
     /// communicators
-    std::shared_ptr<Core::Communication::Communicators> communicators_;
+    std::unique_ptr<Core::Communication::Communicators> communicators_;
 
     /// @name File IO
 
