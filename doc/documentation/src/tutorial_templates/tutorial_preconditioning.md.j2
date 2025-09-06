@@ -116,7 +116,7 @@ STRUCTURAL DYNAMIC:
 ```
 
 </details>
-
+<br>
 
 Now, run the example and watch the convergence behavior of the iterative solver.
 
@@ -187,7 +187,7 @@ Discuss the observations with your colleagues.
 - Smaller damping values, i.e., more damping, increase the number of iterations.
 
 </details>
-
+<br>
 
 ### Step 2: Iterative Solver with Chebyshev preconditioner
 
@@ -214,6 +214,7 @@ STRUCTURAL DYNAMIC:
 ```
 
 </details>
+<br>
 
 Now, run the example and watch the convergence behavior of the iterative solver. Study the influence of the following parameters on the number of GMRES iterations and/or runtime  until convergence:
 
@@ -237,6 +238,7 @@ Discuss the observations with your colleagues.
 Larger polynomial degrees reduce the number of iterations.
 
 </details>
+<br>
 
 ### Step 3: Iterative Solver with Incomplete-LU Factorization Preconditioner
 
@@ -263,6 +265,7 @@ STRUCTURAL DYNAMIC:
 ```
 
 </details>
+<br>
 
 Now, run the example and watch the convergence behavior of the iterative solver. Study the influence of the following parameters on the number of GMRES iterations and/or runtime until convergence:
 
@@ -287,6 +290,7 @@ Discuss the observations with your colleagues.
 Larger fill-in reduces the number of iterations, but increases the preconditioner setup time.
 
 </details>
+<br>
 
 ### Step 4: Iterative Solver with Smoothed-Aggregation Algebraic Multigrid Preconditioner
 
@@ -313,6 +317,7 @@ STRUCTURAL DYNAMIC:
 ```
 
 </details>
+<br>
 
 Now, run the example and watch the convergence behavior of the iterative solver. Study the influence of the following parameters on the number of GMRES iterations and/or runtime until convergence:
 
@@ -336,6 +341,7 @@ Discuss the observations with your colleagues.
 Larger polynomial degrees reduce the number of iterations.
 
 </details>
+<br>
 
 If you like to investigate a different level smoother, follow the "Optional study: change the level smoother".
 
@@ -373,6 +379,7 @@ If you like to investigate a different level smoother, follow the "Optional stud
 </details>
 
 </details>
+<br>
 
 ### Step 5: Weak Scaling Behavior
 
@@ -434,6 +441,7 @@ It can clearly be seen, that
 1. the multigrid preconditioner is the only preconditioner with optimal weak scaling, i.e., the only one that delivers iteration numbers independent of the problem size.
 
 </details>
+<br>
 
 [^1]: Y. Saad. Iterative Methods for Sparse Linear Systems. SIAM, Philadelphia, PA, USA, 2003
 [^2]: J. L. Gustafson. Reevaluating Amdahl’s law. Communications of the ACM, 31(5):532–533, 1988
