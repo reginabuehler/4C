@@ -5,15 +5,15 @@
 
 ## Overview
 
-1. [Solid mechanics: Solving linear systems arising from 3D elasticity](#solid-mechanics:-solving-linear-systems-arising-from-3D-elasticity)
+1. [Solid mechanics: Solving linear systems arising from 3D elasticity](#solid-mechanics-solving-linear-systems-arising-from-3D-elasticity)
     1. [Problem Setup](#problem-setup)
     1. [Preliminary Steps](#preliminary-steps)
-    1. [Step 0: Iterative Solver without any Preconditioner](#step-0:-iterative-solver-without-any-preconditioner)
-    1. [Step 1: Iterative Solver with Jacobi preconditioner](#step-1:-iterative-solver-with-jacobi-preconditioner)
-    1. [Step 2: Iterative Solver with Chebyshev preconditioner](#step-2:-iterative-solver-with-chebyshev-preconditioner)
-    1. [Step 3: Iterative Solver with Incomplete-LU Factorization Preconditioner](#step-3:-iterative-solver-with-incomplete-LU-factorization-preconditioner)
-    1. [Step 4: Iterative Solver with Smoothed-Aggregation Algebraic Multigrid Preconditioner](#step-4:-iterative-solver-with-smoothed-aggregation-algebraic-multigrid-preconditioner)
-    1. [Step 5: Weak Scaling Behavior](#step-5:-weak-scaling-behavior)
+    1. [Step 0: Iterative Solver without any Preconditioner](#step-0-iterative-solver-without-any-preconditioner)
+    1. [Step 1: Iterative Solver with Jacobi preconditioner](#step-1-iterative-solver-with-jacobi-preconditioner)
+    1. [Step 2: Iterative Solver with Chebyshev preconditioner](#step-2-iterative-solver-with-chebyshev-preconditioner)
+    1. [Step 3: Iterative Solver with Incomplete-LU Factorization Preconditioner](#step-3-iterative-solver-with-incomplete-lu-factorization-preconditioner)
+    1. [Step 4: Iterative Solver with Smoothed-Aggregation Algebraic Multigrid Preconditioner](#step-4-iterative-solver-with-smoothed-aggregation-algebraic-multigrid-preconditioner)
+    1. [Step 5: Weak Scaling Behavior](#step-5-weak-scaling-behavior)
 1. [Block preconditioning of monolithic FSI solvers](#block-preconditioning-of-monolithic-fsi-solvers)
 
 ## Solid mechanics: Solving linear systems arising from 3D elasticity
@@ -238,7 +238,7 @@ Larger polynomial degrees reduce the number of iterations.
 
 </details>
 
-### Step 3: Iterative Solver with Incompluete-LU Factorization Preconditioner
+### Step 3: Iterative Solver with Incomplete-LU Factorization Preconditioner
 
 The `tutorial_prec_solid.4C.yaml` input file comes with a pre-configured iterative solver (GMRES) with an **incomplete LU factorization (ILU) preconditioner**. In the input file, it is defined in `SOLVER 4`. The preconditioner is configured in the file `tutorial_prec_solid_ifpack_ILU.xml`.
 
@@ -438,5 +438,6 @@ It can clearly be seen, that
 [^1]: Y. Saad. Iterative Methods for Sparse Linear Systems. SIAM, Philadelphia, PA, USA, 2003
 [^2]: J. L. Gustafson. Reevaluating Amdahl’s law. Communications of the ACM, 31(5):532–533, 1988
 
+## Block preconditioning of monolithic FSI solvers
 
 
