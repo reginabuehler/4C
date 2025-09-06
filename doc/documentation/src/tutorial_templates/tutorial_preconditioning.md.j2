@@ -6,6 +6,8 @@
 {% set input_file_solid_chebyshev_content = load_input_file(tutorial_file_solid_chebyshev) %}
 {% set tutorial_file_solid_ilu = "tutorial_prec_solid_ilu.4C.yaml" %}
 {% set input_file_solid_ilu_content = load_input_file(tutorial_file_solid_ilu) %}
+{% set tutorial_file_solid_amg = "tutorial_prec_solid_amg.4C.yaml" %}
+{% set input_file_solid_amg_content = load_input_file(tutorial_file_solid_amg) %}
 
 (preconditioningtutorial)=
 # Preconditioning Tutorial
@@ -109,21 +111,6 @@ To switch to GMRES with a Jacobi preconditioner, set the solid `LINEAR_SOLVER` t
 
 {{ section_dump(input_file_solid_jacobi_content, ["STRUCTURAL DYNAMIC"], filetype="md") }}
 
-```
-STRUCTURAL DYNAMIC:
-  INT_STRATEGY: "Standard"
-  DYNAMICTYPE: "Statics"
-  TIMESTEP: 1.0
-  NUMSTEP: 1
-  MAXTIME: 1
-  MAXITER: 1
-  RESULTSEVERY: 0
-  RESTARTEVERY: 0
-  NORMCOMBI_RESFDISP: "Or"
-  DIVERCONT: "continue"
-  LINEAR_SOLVER: 2
-```
-
 </details>
 <br>
 
@@ -209,21 +196,6 @@ To switch to GMRES with a Chebyshev preconditioner, set the solid `LINEAR_SOLVER
 
 {{ section_dump(input_file_solid_chebyshev_content, ["STRUCTURAL DYNAMIC"], filetype="md") }}
 
-```
-STRUCTURAL DYNAMIC:
-  INT_STRATEGY: "Standard"
-  DYNAMICTYPE: "Statics"
-  TIMESTEP: 1.0
-  NUMSTEP: 1
-  MAXTIME: 1
-  MAXITER: 1
-  RESULTSEVERY: 0
-  RESTARTEVERY: 0
-  NORMCOMBI_RESFDISP: "Or"
-  DIVERCONT: "continue"
-  LINEAR_SOLVER: 3
-```
-
 </details>
 <br>
 
@@ -262,21 +234,6 @@ To switch to GMRES with an ILU preconditioner, set the solid `LINEAR_SOLVER` to 
 
 {{ section_dump(input_file_solid_ilu_content, ["STRUCTURAL DYNAMIC"], filetype="md") }}
 
-```
-STRUCTURAL DYNAMIC:
-  INT_STRATEGY: "Standard"
-  DYNAMICTYPE: "Statics"
-  TIMESTEP: 1.0
-  NUMSTEP: 1
-  MAXTIME: 1
-  MAXITER: 1
-  RESULTSEVERY: 0
-  RESTARTEVERY: 0
-  NORMCOMBI_RESFDISP: "Or"
-  DIVERCONT: "continue"
-  LINEAR_SOLVER: 4
-```
-
 </details>
 <br>
 
@@ -314,20 +271,7 @@ To switch to GMRES with an algebraic multigrid preconditioner, set the solid `LI
 <details>
 <summary>Solution</summary>
 
-```
-STRUCTURAL DYNAMIC:
-  INT_STRATEGY: "Standard"
-  DYNAMICTYPE: "Statics"
-  TIMESTEP: 1.0
-  NUMSTEP: 1
-  MAXTIME: 1
-  MAXITER: 1
-  RESULTSEVERY: 0
-  RESTARTEVERY: 0
-  NORMCOMBI_RESFDISP: "Or"
-  DIVERCONT: "continue"
-  LINEAR_SOLVER: 5
-```
+{{ section_dump(input_file_solid_amg_content, ["STRUCTURAL DYNAMIC"], filetype="md") }}
 
 </details>
 <br>
