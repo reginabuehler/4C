@@ -11,7 +11,7 @@ STRUCTURAL DYNAMIC:
   RESTARTEVERY: 0
   NORMCOMBI_RESFDISP: "Or"
   DIVERCONT: "continue"
-  LINEAR_SOLVER: 1
+  LINEAR_SOLVER: 3
 
 SOLVER 1:
   SOLVER: "UMFPACK"
@@ -58,7 +58,7 @@ DESIGN SURF DIRICH CONDITIONS:
     VAL: [0.01, 0.01, 0.01]
     FUNCT: [null, null, null]
 STRUCTURE GEOMETRY:
-  FILE: "tutorial_prec_solid_1.exo"
+  FILE: "tutorial_prec_solid_3.exo"
   ELEMENT_BLOCKS:
     - ID: 1
       ELEMENT_NAME: SOLID
