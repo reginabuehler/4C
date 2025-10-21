@@ -7174,6 +7174,7 @@ bool CONTACT::Interface::update_active_set_semi_smooth()
         }  // if (ftype == CONTACT::FrictionType::coulomb)
       }  // if (nz - cn*wgap <= 0)
     }  // if (cnode->Active()==false)
+    cnode->active() = true;  // Add this line to force all nodes to be active
   }  // loop over all slave nodes
 
   // broadcast convergence status among processors
